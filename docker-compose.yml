@@ -4,6 +4,12 @@ services:
     ports:
       - ${APP_PORT}:${APP_PORT}
     env_file: .env
+    environment:
+      - PYTHONPATH=/app/src
+      - VECTOR_DB_HOST=db_vector
+      - VECTOR_DB_PORT=8000
+      - VECTOR_HOST=db_vector
+      - VECTOR_PORT=8000
     depends_on:
       - db_sql
       - db_nosql
@@ -27,16 +33,20 @@ services:
   api:
     build: 
       context: .
-      dockerfile: src/api/Dockerfile
+      dockerfile: apps/api/Dockerfile
     ports:
       - "8500:8500"
     env_file: .env
+    environment:
+      - PYTHONPATH=/app:/app/src
+      - VECTOR_DB_HOST=db_vector
+      - VECTOR_DB_PORT=8000
+      - VECTOR_HOST=db_vector
+      - VECTOR_PORT=8000
     volumes:
-      - ./src/api:/app/api
-      - ./src/rag:/app/rag
+      - ./apps/api:/app/api
       - ./src/agents:/app/agents
-      - ./src/utils:/app/utils
-      - ./src/medlineplus_ingestion.py:/app/medlineplus_ingestion.py
+      - ./src/chat_saude:/app/src/chat_saude
     depends_on:
       - db_sql
       - db_nosql

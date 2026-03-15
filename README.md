@@ -36,5 +36,5 @@
 Para ingerir o dataset WUENIC:
 
 ```bash
-python -c "from utils.ingest_wuenic import ingest_wuenic; ingest_wuenic('path_to_excel.xlsx')"
+PYTHONPATH=src python -c "from chat_saude.ingestion.etl.ingest_wuenic import ingest_wuenic; ingest_wuenic('data/wuenic-input.xlsx')"
 ```

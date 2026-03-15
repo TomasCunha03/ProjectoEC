@@ -30,6 +30,7 @@ scikit-learn
 fastapi
 uvicorn
 pydantic
+pydantic-settings
 
 # LangChain SQL tool
 langchain-core>=0.3.0
