@@ -16,13 +16,9 @@ collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
 
 LLM_MODEL = "gemma3:4b"
 
-# Path to prompts: try repo layout (src/agents) then API Docker layout (/app/agents)
-_agents_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "agents"))
-_prompts_candidates = [
-    os.path.join(_agents_dir, "prompts.yaml"),
-    "/app/agents/prompts.yaml",
-]
-prompts_path = next((p for p in _prompts_candidates if os.path.isfile(p)), _prompts_candidates[0])
+# Carregar rag_prompt do prompts.yaml (src/agents from chat_saude/rag: .. -> chat_saude, .. -> src, agents)
+agents_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "agents"))
+prompts_path = os.path.join(agents_dir, "prompts.yaml")
 
 
 def rag_answer(query: str) -> str:

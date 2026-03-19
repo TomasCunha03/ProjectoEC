@@ -45,7 +45,7 @@ services:
       - VECTOR_PORT=8000
     volumes:
       - ./apps/api:/app/api
-      - ./src/agents:/app/agents
+      - ./src/agents:/app/src/agents
       - ./src/chat_saude:/app/src/chat_saude
     depends_on:
       - db_sql

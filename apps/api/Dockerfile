@@ -10,9 +10,9 @@ COPY requirements.txt ./requirements.txt
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-# Copia o conteúdo da API e dependências (chat_saude, agents para tool_selection e prompts)
+# Copia o conteúdo da API e dependências (chat_saude + agents em /app/src/agents)
 COPY apps/api ./api
-COPY src/agents ./agents
+COPY src/agents ./src/agents
 COPY src/chat_saude ./src/chat_saude
 ENV PYTHONPATH=/app:/app/src
 

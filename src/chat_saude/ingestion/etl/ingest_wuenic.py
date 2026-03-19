@@ -2,6 +2,29 @@ import pandas as pd
 from chat_saude.infrastructure.database.postgres import get_engine
 from sqlalchemy import text
 
+
+def _nullable_int(value):
+    if pd.isna(value):
+        return None
+    return int(value)
+
+
+def _nullable_float(value):
+    if pd.isna(value):
+        return None
+    return float(value)
+
+
+def _nullable_pct(value):
+    """Return percentage compatible with NUMERIC(5,2), else None."""
+    if pd.isna(value):
+        return None
+    val = float(value)
+    if abs(val) >= 1000:
+        return None
+    return round(val, 2)
+
+
 # WUENIC uses SQLAlchemy engine (engine.begin()), not raw psycopg2
 def clean_wuenic_data(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
@@ -90,13 +113,13 @@ def ingest_wuenic(filepath: str):
                     "iso": row["ISOCountryCode"],
                     "vac": row["Vaccine"],
                     "year": int(row["Year"]),
-                    "wuenic": row.get("WUENIC"),
-                    "admin": row.get("AdministrativeCoverage"),
-                    "vaccinated": row.get("ChildrenVaccinated"),
-                    "target": row.get("ChildrenInTarget"),
-                    "births": row.get("BirthsUNPD"),
-                    "surviving": row.get("SurvivingInfantsUNPD"),
-                    "calc": row.get("calculated_coverage"),
+                    "wuenic": _nullable_pct(row.get("WUENIC")),
+                    "admin": _nullable_pct(row.get("AdministrativeCoverage")),
+                    "vaccinated": _nullable_int(row.get("ChildrenVaccinated")),
+                    "target": _nullable_int(row.get("ChildrenInTarget")),
+                    "births": _nullable_int(row.get("BirthsUNPD")),
+                    "surviving": _nullable_int(row.get("SurvivingInfantsUNPD")),
+                    "calc": _nullable_pct(row.get("calculated_coverage")),
                     "flag": row.get("anomaly_flag"),
                 },
             )

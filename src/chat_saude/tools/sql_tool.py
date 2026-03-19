@@ -105,13 +105,8 @@ def sql_query(user_question: str) -> str:
         temperature=0,
     )
 
-    # Path to prompts: try repo layout (src/agents) then API Docker layout (/app/agents)
-    _agents_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "agents"))
-    _prompts_candidates = [
-        os.path.join(_agents_dir, "prompts.yaml"),
-        "/app/agents/prompts.yaml",
-    ]
-    prompts_path = next((p for p in _prompts_candidates if os.path.isfile(p)), _prompts_candidates[0])
+    base_dir = os.path.dirname(__file__)
+    prompts_path = os.path.abspath(os.path.join(base_dir, "..", "..", "agents", "prompts.yaml"))
     gen_template = load_prompt(prompts_path, "sql_prompt")
 
     if not gen_template:
