@@ -53,11 +53,12 @@ system_prompt: |
      - Which indicator codes are available for a specific health topic
      - Details, summary, or information about a specific disease (e.g. "tell me about diabetes", "what is hypertension?", "describe asthma")
 
-  4. **BOTH** - When question needs literature explanation AND database statistics
-
   Language rule: Always respond in English (no matter what language the user uses).
 
-  Task: Respond with ONLY ONE word: RAG, SQL, MONGO, BOTH, or NONE
+  Task: Respond with ONLY valid JSON in the form:
+    { "tools": ["RAG", "SQL", "MONGO"] }
+  The "tools" list can be any subset (including an empty list [] meaning NONE).
+  Do NOT output anything besides the JSON object.
 
   Examples:
   - "What causes diabetes?" → RAG
@@ -71,8 +72,8 @@ system_prompt: |
   - "How does insulin work in the body?" → RAG
   - "Explain the mechanism of hypertension" → RAG
   - "What are treatment guidelines for stroke?" → RAG
-  - "What is diabetes and what are the statistics in Europe?" → BOTH
-  - "Explain asthma and show prevalence rates" → BOTH
+  - "What is diabetes and what are the statistics in Europe?" → RAG and SQL
+  - "Explain asthma and show prevalence rates" → RAG and SQL
   - "What WHO indicators exist for tuberculosis?" → MONGO
   - "What countries does WHO track health data for?" → MONGO
   - "What age groups are available in WHO data?" → MONGO
@@ -83,7 +84,7 @@ system_prompt: |
   - "Describe asthma" → MONGO
   - "Give me information about depression" → MONGO
   - "What is stroke?" → MONGO
-  - "Hello" → NONE
+  - "Hello" → []
 
 rag_prompt: |
   Based on the information below, respond in English in a clear and medically accurate manner.

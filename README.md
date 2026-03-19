@@ -80,7 +80,7 @@ If a database/service is not listed above, it is still used internally by contai
      - `rag_answer` for literature/explanation questions
      - `sql_query` for “numbers/statistics” questions
      - `mongo_query` for WHO GHO + MedlinePlus topic/dimension questions
-     - `both` when the question needs both literature + statistics
+     - One or more tools may be selected for a single question (e.g., RAG + SQL when both explanation and statistics are needed)
 
 ## 8. Development Notes
 - **Ingestion is manual**: datasets and crawled content must be loaded by running the ingestion scripts/crawlers.

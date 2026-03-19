@@ -29,34 +29,46 @@ class ChatService:
             tool_selection_span = start_span(name="tool_selection", input_payload={"message": message})
             decision = select_tool(message)
             end_span(tool_selection_span, output_payload={"decision": decision})
-            tool = decision["tool"]
 
-            if tool == "rag_answer":
-                tool_span = start_span(name="rag", input_payload={"message": message})
-                reply = rag_tool(message)
-                end_span(tool_span, output_payload={"reply": reply})
-            elif tool == "sql_query":
-                tool_span = start_span(name="sql", input_payload={"message": message})
-                reply = sql_query(message)
-                end_span(tool_span, output_payload={"reply": reply})
-            elif tool == "mongo_query":
-                tool_span = start_span(name="mongo", input_payload={"message": message})
-                reply = mongo_query(message)
-                end_span(tool_span, output_payload={"reply": reply})
-            elif tool == "both":
-                rag_span = start_span(name="rag", input_payload={"message": message})
-                rag_reply = rag_tool(message)
-                end_span(rag_span, output_payload={"reply": rag_reply})
+            selected_tools = decision.get("tools") or []
+            ordered_tools = [t for t in ["rag_answer", "sql_query", "mongo_query"] if t in selected_tools]
 
-                sql_span = start_span(name="sql", input_payload={"message": message})
-                sql_reply = sql_query(message)
-                end_span(sql_span, output_payload={"reply": sql_reply})
+            tool_to_span = {
+                "rag_answer": "rag",
+                "sql_query": "sql",
+                "mongo_query": "mongo",
+            }
+            tool_to_fn = {
+                "rag_answer": rag_tool,
+                "sql_query": sql_query,
+                "mongo_query": mongo_query,
+            }
 
-                reply = f"RAG answer:\n{rag_reply}\n\nSQL answer:\n{sql_reply}"
-            else:
+            replies_by_tool: dict[str, str] = {}
+            for tool in ordered_tools:
+                tool_span = start_span(name=tool_to_span[tool], input_payload={"message": message})
+                replies_by_tool[tool] = tool_to_fn[tool](message)
+                end_span(tool_span, output_payload={"reply": replies_by_tool[tool]})
+
+            if not ordered_tools:
                 reply = "Sorry, I cannot answer that question."
+            elif len(ordered_tools) == 1:
+                reply = replies_by_tool[ordered_tools[0]]
+            else:
+                parts = []
+                for tool in ordered_tools:
+                    if tool == "rag_answer":
+                        parts.append(f"RAG answer:\n{replies_by_tool[tool]}")
+                    elif tool == "sql_query":
+                        parts.append(f"SQL answer:\n{replies_by_tool[tool]}")
+                    elif tool == "mongo_query":
+                        parts.append(f"Mongo answer:\n{replies_by_tool[tool]}")
+                reply = "\n\n".join(parts)
 
-            result = {"response": reply, "tool_used": tool or "none"}
+            result = {
+                "response": reply,
+                "tool_used": ",".join(ordered_tools) if ordered_tools else "none",
+            }
             finalize_trace(output_payload=result)
             return result
         except Exception as exc:

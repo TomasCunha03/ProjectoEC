@@ -89,21 +89,21 @@ This section describes what happens for one user message from the UI to the fina
    - Domain filtering (medical vs non-medical) using sentence embeddings
    - If rules produce an answer, `ChatService` returns immediately.
 5. **Tool selection**
-   - An agent-based decision chooses one of: `rag_answer`, `sql_query`, `mongo_query`, or `both`.
-   - The agent uses Ollama with a `system_prompt` that instructs it to output a single decision keyword.
+   - An agent-based decision chooses a subset of tools from: `rag_answer`, `sql_query`, and `mongo_query`.
+   - The agent uses Ollama with a `system_prompt` that instructs it to output a JSON object containing the selected tools.
 6. **Tool execution**
    - `rag_answer`: vector retrieval (Chroma) + reranking + LLM response
    - `sql_query`:
-    - Build a "slim" schema description
+     - Build a "slim" schema description
      - Ask Ollama to generate SQL (SELECT-only)
      - Validate/parse the SQL text
      - Execute against Postgres
      - Ask Ollama to explain results
    - `mongo_query`:
-    - Determine a query "plan" with regex/heuristics
+     - Determine a query "plan" with regex/heuristics
      - Fetch relevant Mongo context (WHO + MedlinePlus collections)
      - Ask Ollama to answer using the retrieved context
-   - `both` runs RAG and SQL and concatenates the responses.
+   - If multiple tools are selected, `ChatService` executes them (in a fixed order) and concatenates their outputs.
 7. **`ChatService` finalizes tracing**
    - The final output is attached to the Langfuse trace and spans are ended.
 8. **FastAPI returns `{ "response": <text>, "tool_used": <tool> }`**
