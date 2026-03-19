@@ -2,9 +2,10 @@ import os
 
 import numpy as np
 import pandas as pd
-from chat_saude.infrastructure.database.db_connection import get_db_connection
 from dotenv import load_dotenv
 from psycopg2.extras import execute_values
+
+from chat_saude.infrastructure.database.db_connection import get_db_connection
 
 load_dotenv()
 
@@ -18,18 +19,20 @@ def ingest_wuenic(file_path):
     df = pd.read_excel(file_path, sheet_name="wuenic_master")
 
     # Normalizar nomes
-    df = df.rename(columns={
-        "Country": "country",
-        "ISOCountryCode": "iso_code",
-        "Vaccine": "vaccine",
-        "Year": "year",
-        "WUENIC": "wuenic_coverage",
-        "AdministrativeCoverage": "administrative_coverage",
-        "ChildrenVaccinated": "children_vaccinated",
-        "ChildrenInTarget": "children_target",
-        "BirthsUNPD": "births_unpd",
-        "SurvivingInfantsUNPD": "surviving_infants"
-    })
+    df = df.rename(
+        columns={
+            "Country": "country",
+            "ISOCountryCode": "iso_code",
+            "Vaccine": "vaccine",
+            "Year": "year",
+            "WUENIC": "wuenic_coverage",
+            "AdministrativeCoverage": "administrative_coverage",
+            "ChildrenVaccinated": "children_vaccinated",
+            "ChildrenInTarget": "children_target",
+            "BirthsUNPD": "births_unpd",
+            "SurvivingInfantsUNPD": "surviving_infants",
+        }
+    )
 
     df = df.replace({np.nan: None})
 
@@ -49,7 +52,7 @@ def ingest_wuenic(file_path):
             VALUES %s
             ON CONFLICT (iso_code) DO NOTHING
             """,
-            [tuple(x) for x in country_df.to_numpy()]
+            [tuple(x) for x in country_df.to_numpy()],
         )
 
         # -------------------------
@@ -64,7 +67,7 @@ def ingest_wuenic(file_path):
             VALUES %s
             ON CONFLICT (vaccine_code) DO NOTHING
             """,
-            [tuple(x) for x in vaccine_df.to_numpy()]
+            [tuple(x) for x in vaccine_df.to_numpy()],
         )
 
         # -------------------------
@@ -85,19 +88,21 @@ def ingest_wuenic(file_path):
             country_id = country_map.get(row["iso_code"])
             vaccine_id = vaccine_map.get(row["vaccine"])
 
-            fact_data.append((
-                country_id,
-                vaccine_id,
-                row.get("year"),
-                row.get("wuenic_coverage"),
-                row.get("administrative_coverage"),
-                row.get("children_vaccinated"),
-                row.get("children_target"),
-                row.get("births_unpd"),
-                row.get("surviving_infants"),
-                None,  # calculated_coverage
-                False  # anomaly_flag
-            ))
+            fact_data.append(
+                (
+                    country_id,
+                    vaccine_id,
+                    row.get("year"),
+                    row.get("wuenic_coverage"),
+                    row.get("administrative_coverage"),
+                    row.get("children_vaccinated"),
+                    row.get("children_target"),
+                    row.get("births_unpd"),
+                    row.get("surviving_infants"),
+                    None,  # calculated_coverage
+                    False,  # anomaly_flag
+                )
+            )
 
         execute_values(
             cur,
@@ -118,7 +123,7 @@ def ingest_wuenic(file_path):
             VALUES %s
             ON CONFLICT (country_id, vaccine_id, year) DO NOTHING
             """,
-            fact_data
+            fact_data,
         )
 
         conn.commit()
