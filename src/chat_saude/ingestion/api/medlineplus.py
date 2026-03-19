@@ -48,7 +48,7 @@ def fetch_disease_names() -> list[str]:
     if count > 0:
         cur.execute("SELECT name FROM diseases ORDER BY name")
     else:
-        print("[INFO] Tabela 'diseases' vazia, a usar 'drugs_side_effects.medical_condition'")
+        print("[INFO] Table 'diseases' is empty; using 'drugs_side_effects.medical_condition'")
         cur.execute(
             "SELECT DISTINCT medical_condition FROM drugs_side_effects WHERE medical_condition"
             " IS NOT NULL ORDER BY medical_condition"
@@ -71,30 +71,30 @@ def fetch_medlineplus(disease_name: str) -> dict | None:
         resp = requests.get(MEDLINE_BASE_URL, params=params, timeout=15)
         resp.raise_for_status()
     except requests.RequestException as e:
-        print(f"  [WARN] Erro ao chamar API para '{disease_name}': {e}")
+        print(f"  [WARN] Error calling API for '{disease_name}': {e}")
         return None
 
-    # Resposta é XML
+    # The response is XML
     try:
         root = ET.fromstring(resp.content)
     except ET.ParseError as e:
-        print(f"  [WARN] Erro a parsear XML para '{disease_name}': {e}")
+        print(f"  [WARN] Error parsing XML for '{disease_name}': {e}")
         return None
 
-    # Namespace da MedlinePlus
+    # MedlinePlus namespace
     ns = {"nlm": "https://wsearch.nlm.nih.gov/ws/query"}
 
-    # Primeiro resultado
+    # First result
     doc = root.find(".//nlm:document", ns)
     if doc is None:
-        # Tentar sem namespace (fallback)
+        # Try without namespace (fallback)
         doc = root.find(".//document")
     if doc is None:
-        print(f"  [INFO] Sem resultados para '{disease_name}'")
+        print(f"  [INFO] No results for '{disease_name}'")
         return None
 
     def get_content(tag):
-        # Tenta com e sem namespace
+        # Try with and without namespace
         el = doc.find(f"nlm:content[@name='{tag}']", ns)
         if el is None:
             el = doc.find(f"content[@name='{tag}']")
@@ -102,7 +102,7 @@ def fetch_medlineplus(disease_name: str) -> dict | None:
 
     full_summary = get_content("FullSummary")
     if not full_summary:
-        print(f"  [INFO] FullSummary vazio para '{disease_name}'")
+        print(f"  [INFO] Empty FullSummary for '{disease_name}'")
         return None
 
     return {
@@ -124,21 +124,21 @@ def ingest_medlineplus(skip_connection_check: bool = False):
             sys.exit(1)
         print("[DEBUG] DB connection verified.")
 
-    # 1. Buscar doenças do PostgreSQL
+    # 1. Fetch disease names from PostgreSQL
     disease_names = fetch_disease_names()
-    print(f"Doenças encontradas no PostgreSQL: {len(disease_names)}")
+    print(f"Diseases found in PostgreSQL: {len(disease_names)}")
 
     collection = db[COLLECTION_NAME]
 
     ingested, skipped, failed = 0, 0, 0
 
     for disease in disease_names:
-        print(f"A processar: {disease}")
+        print(f"Processing: {disease}")
 
-        # Evitar duplicados — atualiza se já existir
+        # Avoid duplicates; only insert if the entry doesn't exist
         existing = collection.find_one({"disease_name": disease})
         if existing:
-            print(f"  [SKIP] Já existe entrada para '{disease}'")
+            print(f"  [SKIP] Entry already exists for '{disease}'")
             skipped += 1
             continue
 
@@ -149,7 +149,7 @@ def ingest_medlineplus(skip_connection_check: bool = False):
         else:
             failed += 1
 
-    print(f"\nIngestão concluída: {ingested} insert | {skipped} ignored | {failed} sem resultados")
+    print(f"\nIngestion completed: {ingested} inserted | {skipped} ignored | {failed} no results")
     return {"ingested": ingested, "skipped": skipped, "failed": failed}
 
 

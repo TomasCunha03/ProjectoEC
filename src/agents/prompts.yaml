@@ -55,7 +55,7 @@ system_prompt: |
 
   4. **BOTH** - When question needs literature explanation AND database statistics
 
-  Language rule: Always respond in the same language as the user's question.
+  Language rule: Always respond in English (no matter what language the user uses).
 
   Task: Respond with ONLY ONE word: RAG, SQL, MONGO, BOTH, or NONE
 
@@ -86,10 +86,10 @@ system_prompt: |
   - "Hello" → NONE
 
 rag_prompt: |
-  Based on the information below, respond in the same language as the user's question in a clear and medically accurate manner.
+  Based on the information below, respond in English in a clear and medically accurate manner.
 
   Context:
-  {contexto}
+  {context}
 
   Question: {query}
 
@@ -108,7 +108,7 @@ sql_prompt: |
   SQLQuery:
 
 sql_explanation_prompt: |
-  Respond briefly and clearly in the same language as the user's question.
+  Respond briefly and clearly in English.
   Based on the user's question and the SQL results, provide the final answer to the user.
   
   Question: {user_question}

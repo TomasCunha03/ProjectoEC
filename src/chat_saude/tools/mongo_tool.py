@@ -61,8 +61,8 @@ def _build_context(action: str, plan: dict, db) -> str:
         keyword = plan.get("keyword", "")
         results = _search_indicators(db, keyword)
         if not results:
-            return f"Nenhum indicador encontrado para '{keyword}'."
-        lines = [f"Indicadores WHO relacionados com '{keyword}' ({len(results)} encontrados):"]
+            return f"No WHO indicators found for '{keyword}'."
+        lines = [f"WHO indicators related to '{keyword}' ({len(results)} found):"]
         for r in results:
             lines.append(f"  - [{r.get('IndicatorCode', 'N/A')}] {r.get('IndicatorName', 'N/A')}")
         return "\n".join(lines)
@@ -71,15 +71,15 @@ def _build_context(action: str, plan: dict, db) -> str:
         dim_code = plan.get("dimension_code", "").upper()
         results = _get_dimension_values(db, dim_code)
         if not results:
-            return f"Nenhum valor encontrado para a dimensão '{dim_code}'."
-        lines = [f"Valores disponíveis para a dimensão '{dim_code}' ({len(results)} mostrados):"]
+            return f"No values found for dimension '{dim_code}'."
+        lines = [f"Available values for dimension '{dim_code}' ({len(results)} shown):"]
         for r in results:
             lines.append(f"  - [{r.get('Code', 'N/A')}] {r.get('Title', 'N/A')}")
         return "\n".join(lines)
 
     elif action == "list_collections":
         collections = _list_collections(db)
-        lines = [f"Coleções disponíveis na base de dados MongoDB ({len(collections)} total):"]
+        lines = [f"Available MongoDB collections ({len(collections)} total):"]
         for c in collections:
             lines.append(f"  - {c}")
         return "\n".join(lines)
@@ -88,24 +88,24 @@ def _build_context(action: str, plan: dict, db) -> str:
         keyword = plan.get("keyword", "")
         result = _search_disease_info(db, keyword)
         if not result:
-            return f"Nenhuma informação encontrada para '{keyword}' na base de dados MedlinePlus."
-        # Remove tags HTML do resumo
+            return f"No MedlinePlus information found for '{keyword}'."
+        # Remove HTML tags from the summary
         summary = re.sub(r"<[^>]+>", " ", result.get("full_summary", ""))
         summary = re.sub(r"\s+", " ", summary).strip()
         lines = [
             f"**{result.get('title', result.get('disease_name', keyword))}**"
-            " (Fonte: MedlinePlus/NIH)",
+            " (Source: MedlinePlus/NIH)",
             "",
             summary,
         ]
         if result.get("url"):
-            lines.append(f"\nMais informação: {result['url']}")
+            lines.append(f"\nMore information: {result['url']}")
         return "\n".join(lines)
 
-    return "Ação não reconhecida."
+    return "Action not recognized."
 
 
-# Padrões para detetar perguntas sobre dimensões (países, grupos etários, etc.)
+# Patterns to detect questions about dimensions (countries, age groups, etc.)
 _DIMENSION_PATTERNS = {
     "COUNTRY": re.compile(r"\b(countr|nation|where|location)\w*\b", re.I),
     "AGEGROUP": re.compile(r"\b(age\s*group|age\s*range|ages?)\b", re.I),
@@ -209,7 +209,7 @@ _KNOWN_DISEASES = [
 
 
 def _plan_query(user_question: str) -> tuple[str, dict]:
-    """Determina a ação e parâmetros MongoDB com base na pergunta, sem usar LLM."""
+    """Determine the MongoDB action and parameters from the question (no LLM used)."""
     q = user_question.lower()
 
     if re.search(r"\b(collections?|what data|what is available|available data)\b", q):
@@ -237,8 +237,8 @@ def _plan_query(user_question: str) -> tuple[str, dict]:
 
 def mongo_query(user_question: str) -> str:
     """
-    Consulta a base de dados MongoDB com base na pergunta do utilizador.
-    Utiliza correspondência por regex para determinar a ação e o LLM para gerar a resposta final.
+    Query MongoDB based on the user's question.
+    Uses regex/heuristics to determine the action, then uses the LLM to generate the final response.
     """
     logger.info("Mongo tool input: %s", user_question)
     span = start_span(name="mongo_tool", input_payload={"question": user_question})
@@ -251,11 +251,10 @@ def mongo_query(user_question: str) -> str:
 
         client = ollama.Client(host=OLLAMA_HOST)
         prompt = (
-            "Baseando-te nos dados abaixo provenientes da base de dados MongoDB de saúde, "
-            "responde em português de Portugal de forma clara e útil à pergunta do utilizador.\n\n"
+            "Based on the data below from the health MongoDB database, answer in English clearly and helpfully.\n\n"
             f"Dados:\n{context}\n\n"
-            f"Pergunta: {user_question}\n\n"
-            "Responde de forma concisa e informativa, apresentando os dados de forma organizada."
+            f"Question: {user_question}\n\n"
+            "Respond concisely and informatively, presenting the retrieved data in an organized way."
         )
 
         response = client.generate(model=LLM_MODEL, prompt=prompt)

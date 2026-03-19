@@ -20,7 +20,7 @@ urls = [
 
 
 def download_pdf(url, save_folder=PDF_FOLDER):
-    """Baixa PDF se URL terminar em .pdf"""
+    """Download PDF if the URL ends with .pdf"""
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
         r = requests.get(url, headers=headers, stream=True, timeout=30)
@@ -32,28 +32,28 @@ def download_pdf(url, save_folder=PDF_FOLDER):
                         f.write(chunk)
             return filename
     except Exception as e:
-        print(f"Erro ao baixar PDF {url}: {e}")
+        print(f"Error downloading PDF {url}: {e}")
     return None
 
 
 def extract_text_from_url(url):
-    """Extrai texto limpo de HTML"""
+    """Extract clean text from HTML"""
     try:
         downloaded = trafilatura.fetch_url(url)
         if downloaded:
             text = trafilatura.extract(downloaded, include_comments=False, include_tables=False)
             return text
     except Exception as e:
-        print(f"Erro ao extrair HTML {url}: {e}")
+        print(f"Error extracting HTML {url}: {e}")
     return ""
 
 
 def crawl_medicina_preventiva(urls, keyword="medicina preventiva"):
     results = []
     for url in urls:
-        print(f"\n Processando: {url}")
+        print(f"\nProcessing: {url}")
         text = ""
-        # Tenta extrair texto limpo
+        # Try extracting clean text
         text = extract_text_from_url(url)
         if not text and url.lower().endswith(".pdf"):
             pdf_file = download_pdf(url)
@@ -64,7 +64,7 @@ def crawl_medicina_preventiva(urls, keyword="medicina preventiva"):
                 for page in doc:
                     text += page.get_text() + "\n\n"
         if not text:
-            print(" Nenhum texto extraído, ignorando URL")
+            print("No text extracted, skipping URL")
             continue
         result = {
             "title": url.split("/")[-1].replace("-", " ").capitalize(),
@@ -75,7 +75,7 @@ def crawl_medicina_preventiva(urls, keyword="medicina preventiva"):
             "text": text,
             "data_crawling": datetime.now().isoformat(),
         }
-        print(f" Extraído {len(text)} caracteres")
+        print(f"Extracted {len(text)} characters")
         results.append(result)
         time.sleep(random.uniform(2, 5))
     return results
@@ -85,7 +85,7 @@ def main():
     data = crawl_medicina_preventiva(urls)
     with open("medicina_preventiva_fulltext.json", "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    print(f"\n Guardado {len(data)} documentos em medicina_preventiva_fulltext.json")
+    print(f"\nSaved {len(data)} documents to medicina_preventiva_fulltext.json")
 
 
 if __name__ == "__main__":

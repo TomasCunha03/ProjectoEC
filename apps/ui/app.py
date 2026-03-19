@@ -26,43 +26,43 @@ if "messages" not in st.session_state:
 
 def landing_page():
     st.title("DrHouseGPT")
-    st.subheader("Um chatbot inteligente para diagnosticar doenças e outras mazelas")
+    st.subheader("An intelligent chatbot for diagnosing diseases and other ailments")
     image = Image.open("src/assets/Dr.House_S4E3_15.png")
     st.image(image, use_container_width=True)
 
     st.markdown(
         """
-        O uso deste chatbot não substitui a consulta de um médico a sério.
+        Using this chatbot does not replace a real consultation with a healthcare professional.
         """
     )
 
-    if st.button("💬 Conversar com o DrHouseGPT", use_container_width=True):
+    if st.button("💬 Chat with DrHouseGPT", use_container_width=True):
         st.session_state.page = "chat"
         st.rerun()
 
     # Expander com os testes de status
 
-    with st.expander("⚙️ Estado do sistema"):
-        st.header("Status da Infraestrutura")
+    with st.expander("⚙️ System status"):
+        st.header("Infrastructure status")
         col1, col2, col3 = st.columns(3)
 
         with col1:
             if test_sql():
-                st.success("SQL (PostgreSQL) - Conectado")
+                st.success("SQL (PostgreSQL) - Connected")
             else:
-                st.error("SQL - Falha na Ligação")
+                st.error("SQL - Connection failed")
 
         with col2:
             if test_nosql():
-                st.success("NoSQL (MongoDB) - Conectado")
+                st.success("NoSQL (MongoDB) - Connected")
             else:
-                st.error("NoSQL - Falha na Ligação")
+                st.error("NoSQL - Connection failed")
 
         with col3:
             if test_vector():
-                st.success("Vetorial (Chroma) - Conectado")
+                st.success("Vector (Chroma) - Connected")
             else:
-                st.warning("Vetorial - Offline ou em Setup")
+                st.warning("Vector - Offline or in setup")
 
 
 # Página de Chat
@@ -71,7 +71,7 @@ def landing_page():
 def chat_page():
     st.title("👨🏻‍⚕️ DrHouseGPT")
 
-    st.caption("Escreve uma mensagem para iniciar a conversa")
+    st.caption("Type a message to start the conversation")
 
     # Mostrar histórico
     for msg in st.session_state.messages:
@@ -79,13 +79,13 @@ def chat_page():
             st.markdown(msg["content"])
 
     # Input do utilizador
-    if prompt := st.chat_input("Escreve aqui..."):
+    if prompt := st.chat_input("Type here..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
 
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # ---- Aqui entra a lógica do chatbot (mock por agora) ----
+        # ---- Chatbot logic is triggered here (mock for now) ----
         API_URL = f"http://{os.getenv('API_HOST')}:{os.getenv('API_PORT')}/chat/"
 
         r = requests.post(
@@ -95,7 +95,7 @@ def chat_page():
         )
 
         if r.status_code != 200:
-            response = f"Erro da API: {r.status_code} - {r.text}"
+            response = f"API error: {r.status_code} - {r.text}"
         else:
             response = r.json()["response"]
 
@@ -106,7 +106,7 @@ def chat_page():
 
     st.markdown("---")
 
-    if st.button("⬅ Voltar"):
+    if st.button("⬅ Back"):
         st.session_state.page = "landing"
         st.rerun()
 

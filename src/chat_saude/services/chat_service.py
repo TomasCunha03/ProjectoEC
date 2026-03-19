@@ -52,9 +52,9 @@ class ChatService:
                 sql_reply = sql_query(message)
                 end_span(sql_span, output_payload={"reply": sql_reply})
 
-                reply = f"Resposta RAG:\n{rag_reply}\n\nResposta SQL:\n{sql_reply}"
+                reply = f"RAG answer:\n{rag_reply}\n\nSQL answer:\n{sql_reply}"
             else:
-                reply = "Desculpe, não consigo responder a essa pergunta."
+                reply = "Sorry, I cannot answer that question."
 
             result = {"response": reply, "tool_used": tool or "none"}
             finalize_trace(output_payload=result)

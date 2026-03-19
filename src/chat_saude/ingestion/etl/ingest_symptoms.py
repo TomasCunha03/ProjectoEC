@@ -2,7 +2,7 @@ import pandas as pd
 from chat_saude.infrastructure.database.db_connection import get_db_connection
 from dotenv import load_dotenv
 
-# Carregar variÃ¡veis de ambiente
+# Load environment variables
 load_dotenv()
 
 

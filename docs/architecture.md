@@ -173,7 +173,7 @@ Chroma stores embedded text chunks used for retrieval:
   - `pmc_medicine_preventive`
 - Retrieval flow:
   - embed query -> `collection.query(...)`
-  - rerank returned chunks -> create `contexto`
+  - rerank returned chunks -> create `context`
 
 ## 6. Observability
 ### Langfuse tracing

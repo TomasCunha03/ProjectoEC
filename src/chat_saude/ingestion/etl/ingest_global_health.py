@@ -2,25 +2,25 @@ import os
 
 import pandas as pd
 
-# Importas a tua utilidade de conexão que já existe
+# Import the existing database connection utility
 from chat_saude.infrastructure.database.db_connection import get_db_connection
 from dotenv import load_dotenv
 from psycopg2.extras import execute_values
 
-# 1. Carregar o .env (podes manter o caminho relativo para ser mais flexível)
+# 1. Load the .env file (keep relative paths for flexibility)
 load_dotenv()
 
 
 def ingest_global_stats(csv_path):
     if not os.path.exists(csv_path):
-        print(f"Erro: O ficheiro {csv_path} não foi encontrado.")
+        print(f"Error: File {csv_path} was not found.")
         return
 
-    # 2. Ler o CSV
+    # 2. Read the CSV
     df = pd.read_csv(csv_path)
 
-    # 3. Mapear as colunas do CSV para os nomes da tabela SQL
-    # Isto garante que os nomes com % ou espaços não quebrem a query
+    # 3. Map CSV columns to SQL table column names
+    # This prevents special characters/spaces from breaking the query
     columns_map = {
         "Country": "country",
         "Year": "year",
@@ -48,11 +48,11 @@ def ingest_global_stats(csv_path):
 
     df = df.rename(columns=columns_map)
 
-    # 4. Conectar e Inserir
+    # 4. Connect and insert
     conn = get_db_connection()
     cur = conn.cursor()
 
-    # Prepara a query com ON CONFLICT para evitar erros se correrem o script 2 vezes
+    # Prepare the query with ON CONFLICT to avoid errors if the script runs twice
     cols = ", ".join(df.columns)
     insert_query = f"""
         INSERT INTO global_health_stats ({cols}) 
@@ -60,22 +60,22 @@ def ingest_global_stats(csv_path):
         ON CONFLICT (country, year, disease_name, age_group, gender) DO NOTHING
     """
 
-    # Converte o DataFrame para uma lista de tuplos para uma inserção rápida
+    # Convert the DataFrame to a list of tuples for fast insertion
     data_tuples = [tuple(x) for x in df.to_numpy()]
 
     try:
         execute_values(cur, insert_query, data_tuples)
         conn.commit()
-        print(f"Sucesso: {len(df)} registos inseridos na tabela global_health_stats.")
+        print(f"Success: {len(df)} records inserted into table global_health_stats.")
     except Exception as e:
         conn.rollback()
-        print(f"Erro durante a ingestão: {e}")
+        print(f"Error during ingestion: {e}")
     finally:
         cur.close()
         conn.close()
 
 
 if __name__ == "__main__":
-    # Caminho correto do CSV
+    # Correct CSV path
     csv_path = "/Users/matildefernandes/Desktop/PEC/Global Health Statistics.csv"
     ingest_global_stats(csv_path)

@@ -1,16 +1,16 @@
-# Ambientes Virtuais
+# Virtual environments
 .venv/
 venv/
 env/
 ENV/
 
-# Ficheiros compilados do Python
+# Compiled Python files
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# Ficheiros de IDEs (VS Code, PyCharm, etc.)
+# IDE files (VS Code, PyCharm, etc.)
 .vscode/
 .idea/
 *.swp

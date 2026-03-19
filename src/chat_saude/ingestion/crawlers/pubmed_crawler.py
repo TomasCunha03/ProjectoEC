@@ -11,16 +11,16 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
-# --- Pastas de output ---
+# --- Output folders ---
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
 JSON_PATH = os.path.join(OUTPUT_DIR, "dataset_pubmed_preventive.json")
 
-# --- Termos de pesquisa focados em medicina preventiva ---
+# --- Search terms focused on preventive medicine ---
 TERMOS_MEDICINA_PREVENTIVA = [
     # Diretrizes Gerais
     "preventive medicine guidelines",
     "primary care screening recommendations",
-    # Doenças Crónicas
+    # Chronic diseases
     "type 2 diabetes prevention lifestyle",
     "hypertension dietary approaches",
     "cardiovascular disease risk reduction",
@@ -60,7 +60,7 @@ def extrair_dados_pubmed(driver, termo_pesquisa: str, num_paginas: int = 5) -> l
     for pagina in range(1, num_paginas + 1):
         try:
             url = f"https://pubmed.ncbi.nlm.nih.gov/?term={termo_pesquisa}&page={pagina}"
-            print(f" >> A recolher '{termo_pesquisa}' | Pag {pagina}/{num_paginas}")
+            print(f" >> Collecting '{termo_pesquisa}' | Page {pagina}/{num_paginas}")
             driver.get(url)
 
             try:
@@ -68,7 +68,7 @@ def extrair_dados_pubmed(driver, termo_pesquisa: str, num_paginas: int = 5) -> l
                     EC.presence_of_element_located((By.CSS_SELECTOR, "a.docsum-title"))
                 )
             except Exception:
-                print("    Sem mais resultados. A saltar termo.")
+                print("    No more results. Skipping term.")
                 break
 
             links = [
@@ -76,30 +76,30 @@ def extrair_dados_pubmed(driver, termo_pesquisa: str, num_paginas: int = 5) -> l
                 for e in driver.find_elements(By.CSS_SELECTOR, "a.docsum-title")
             ]
 
-            # Navegar em cada link encontrado
+            # Navigate each found link
             for link in links:
                 if link in [d["url"] for d in dados_locais]:
-                    continue  # Evitar duplicados locais
+                    continue  # Avoid local duplicates
 
                 try:
                     driver.get(link)
-                    # Espera apenas pelo título
+                    # Wait only for the title
                     WebDriverWait(driver, 5).until(
                         EC.presence_of_element_located((By.CSS_SELECTOR, "h1.heading-title"))
                     )
 
-                    # Extração
+                    # Extraction
                     titulo = driver.find_element(By.CSS_SELECTOR, "h1.heading-title").text.strip()
                     try:
                         abstract = driver.find_element(
                             By.CSS_SELECTOR, "div.abstract-content"
                         ).text.strip()
                     except Exception:
-                        abstract = ""  # Se não tem abstract, não serve para RAG
+                        abstract = ""  # If there is no abstract, it is not useful for RAG
 
-                    # Filtro de Qualidade: Só guarda se tiver Abstract
+                    # Quality filter: keep only if it has Abstract
                     if abstract and len(abstract) > 50:
-                        # Extrair PMID e Ano
+                        # Extract PMID and year
                         try:
                             meta_str = driver.find_element(By.CSS_SELECTOR, "span.cit").text
                             year_match = re.search(r"\d{4}", meta_str)
@@ -124,26 +124,26 @@ def extrair_dados_pubmed(driver, termo_pesquisa: str, num_paginas: int = 5) -> l
                     pass
 
         except Exception as e:
-            print(f"Erro na página {pagina}: {e}")
+            print(f"Error on page {pagina}: {e}")
 
     return dados_locais
 
 
-# --- EXECUCAO ---
+# --- Execution ---
 if __name__ == "__main__":
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     todos_resultados = []
 
     for termo in TERMOS_MEDICINA_PREVENTIVA:
-        print(f"\n=== A pesquisar: '{termo}' ===")
+        print(f"\n=== Searching: '{termo}' ===")
         resultados = extrair_dados_pubmed(iniciar_driver(), termo)
         todos_resultados.extend(resultados)
-        print(f"Total parcial: {len(todos_resultados)} artigos recolhidos.")
+        print(f"Partial total: {len(todos_resultados)} articles collected.")
         time.sleep(3)
 
     if todos_resultados:
-        # Remove duplicados por pmid
+        # Remove duplicates by PMID
         vistos = set()
         unicos = []
         for r in todos_resultados:
@@ -154,6 +154,6 @@ if __name__ == "__main__":
         with open(JSON_PATH, "w", encoding="utf-8") as f:
             json.dump(unicos, f, ensure_ascii=False, indent=2)
 
-        print(f"\nSucesso! {len(unicos)} artigos guardados em '{JSON_PATH}'.")
+        print(f"\nSuccess! {len(unicos)} articles saved to '{JSON_PATH}'.")
     else:
-        print("Nenhum dado recolhido.")
+        print("No data collected.")

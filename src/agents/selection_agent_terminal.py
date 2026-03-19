@@ -8,21 +8,21 @@ from tool_selection_agent import select_tool
 
 def main():
     print("=" * 80)
-    print("TESTE INTERATIVO - AGENTE DE SELEÇÃO DE FERRAMENTAS")
+    print("INTERACTIVE TEST - TOOL SELECTION AGENT")
     print("=" * 80)
 
     while True:
         try:
-            question = input("\nPergunta: ").strip()
+            question = input("\nQuestion: ").strip()
 
             if not question:
                 continue
 
             if question.lower() in ["sair", "exit", "quit", "q"]:
-                print("\nA encerrar... Até logo!")
+                print("\nExiting... See you!")
                 break
 
-            print("\nA analisar...")
+            print("\nAnalyzing...")
             result = select_tool(question)
 
             print(f"  Ferramenta: {result['tool'] or 'NONE'}")
@@ -30,11 +30,11 @@ def main():
             print("-" * 80)
 
         except KeyboardInterrupt:
-            print("\n\nInterrompido pelo utilizador. Até logo!")
+            print("\n\nInterrupted by the user. See you!")
             break
         except Exception as e:
-            print(f"\nErro: {e}")
-            print("Certifique-se de que o Ollama está a correr: ollama serve")
+            print(f"\nError: {e}")
+            print("Make sure Ollama is running: ollama serve")
             print("-" * 80)
 
 

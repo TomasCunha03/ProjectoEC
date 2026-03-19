@@ -1,4 +1,4 @@
-# Ambientes Virtuais e Dependências
+# Virtual environments and dependencies
 venv/
 .venv/
 env/
@@ -17,13 +17,13 @@ wheels/
 .installed.cfg
 *.egg
 
-# Variáveis de Ambiente e Segredos
+# Environment variables and secrets
 .env
 .env.local
 .env.*.local
 .flaskenv
 
-# Caches do Python e do IDE
+# Python and IDE caches
 __pycache__/
 *.py[cod]
 *$py.class

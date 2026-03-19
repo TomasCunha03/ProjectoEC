@@ -7,7 +7,7 @@ LLM_MODEL = "gemma3:4b"
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 
 def load_prompt(file_path="prompts.yaml", key="system_prompt") -> str:
-    """Lê o ficheiro YAML e extrai o prompt correspondente."""
+    """Load the YAML file and extract the prompt for the given key."""
 
     if not os.path.isabs(file_path):
         file_path = os.path.join(os.path.dirname(__file__), file_path)
@@ -16,10 +16,10 @@ def load_prompt(file_path="prompts.yaml", key="system_prompt") -> str:
             prompts = yaml.safe_load(file)
             return prompts.get(key, "")
     except FileNotFoundError:
-        print(f"Erro: Ficheiro {file_path} não encontrado!")
+        print(f"Error: File {file_path} not found!")
         return ""
     except Exception as e:
-        print(f"Erro ao ler YAML: {e}")
+        print(f"Error reading YAML: {e}")
         return ""
 
 def select_tool(user_question: str) -> dict:

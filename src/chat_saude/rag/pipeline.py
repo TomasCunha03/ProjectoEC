@@ -16,7 +16,7 @@ collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
 
 LLM_MODEL = "gemma3:4b"
 
-# Carregar rag_prompt do prompts.yaml (src/agents from chat_saude/rag: .. -> chat_saude, .. -> src, agents)
+# Load rag_prompt from prompts.yaml (src/chat_saude/rag: .. -> chat_saude, .. -> src, agents)
 agents_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "agents"))
 prompts_path = os.path.join(agents_dir, "prompts.yaml")
 
@@ -36,7 +36,7 @@ def rag_answer(query: str) -> str:
 
     ranked_docs = [d for _, d in sorted(zip(scores, docs), reverse=True)]
 
-    contexto = "\n".join(ranked_docs[:3])
+    context = "\n".join(ranked_docs[:3])
 
     with open(prompts_path, encoding="utf-8") as file:
         prompts = yaml.safe_load(file)
@@ -45,7 +45,7 @@ def rag_answer(query: str) -> str:
     if not rag_template:
         raise RuntimeError("RAG prompt template not found in prompts.yaml")
 
-    prompt = rag_template.format(contexto=contexto, query=query)
+    prompt = rag_template.format(context=context, query=query)
 
     client = ollama.Client(host="http://ollama:11434")
     response = client.generate(model=LLM_MODEL, prompt=prompt)

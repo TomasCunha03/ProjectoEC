@@ -4,7 +4,7 @@ import os
 import chromadb
 from sentence_transformers import SentenceTransformer
 
-# Ficheiros
+# Files
 DATA_DIR = "../../data"
 JSON_FILES = ["pmc_simples.json", "pmc_preventive_medicine_clean.json"]
 
@@ -20,13 +20,13 @@ def chunk_text(text, size=800, overlap=200):
     return chunks
 
 
-# Coleção e embedding
+# Collection and embedding model
 COLLECTION_NAME = "pmc_medicine_preventive"
 embbeding_model = SentenceTransformer("BAAI/bge-base-en-v1.5")
 
-# Ligação ao ChromaDB
+# Connection to ChromaDB
 client = chromadb.HttpClient(host="localhost", port=8002)
-print(client.list_collections())  # Lista coleções
+print(client.list_collections())  # List collections
 
 if COLLECTION_NAME in [c.name for c in client.list_collections()]:
     client.delete_collection(COLLECTION_NAME)
@@ -34,7 +34,7 @@ if COLLECTION_NAME in [c.name for c in client.list_collections()]:
 collection = client.get_or_create_collection(name=COLLECTION_NAME)
 
 
-# Carregar Ficheiros
+# Load files
 all_articles = []
 for file in JSON_FILES:
     path = os.path.join(DATA_DIR, file)
@@ -49,7 +49,7 @@ for file in JSON_FILES:
 print(f"Loaded {len(all_articles)} total articles")
 
 
-# Preparar para guardar no ChromaDB
+# Prepare documents to store in ChromaDB
 documents = []
 metadatas = []
 ids = []
@@ -78,10 +78,10 @@ for article in all_articles:
 
 print(f"Prepared {len(documents)} chunks")
 
-# Criar embeddings
+# Create embeddings
 embbeding = embbeding_model.encode(documents, normalize_embeddings=True, show_progress_bar=True)
 
-# Armazenar no Chromadb
+# Store in Chroma
 collection.add(documents=documents, embeddings=embbeding, metadatas=metadatas, ids=ids)
 
 print("Stored in ChromaDB Successfully!")

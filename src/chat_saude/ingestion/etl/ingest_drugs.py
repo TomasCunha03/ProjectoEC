@@ -11,10 +11,10 @@ load_dotenv()
 
 def ingest_drugs(csv_path):
     if not os.path.exists(csv_path):
-        print(f"Erro: O ficheiro {csv_path} não foi encontrado.")
+        print(f"Error: File {csv_path} was not found.")
         return
 
-    print("A carregar dataset Drugs & Side Effects...")
+    print("Loading dataset Drugs & Side Effects...")
     df = pd.read_csv(csv_path)
 
     cols_map = {
@@ -37,12 +37,12 @@ def ingest_drugs(csv_path):
         "medical_condition_url": "medical_condition_url",
     }
 
-    # Filtrar apenas colunas que existem no CSV (protecção contra variações)
+    # Keep only columns that exist in the CSV (protection against variations)
     available = {k: v for k, v in cols_map.items() if k in df.columns}
     df = df[list(available.keys())].rename(columns=available)
-    print(f"Campos mapeados: {len(df.columns)} de {len(cols_map)}")
+    print(f"Mapped columns: {len(df.columns)} of {len(cols_map)}")
 
-    # Limpeza
+    # Cleaning
     if "rating" in df.columns:
         df["rating"] = pd.to_numeric(df["rating"], errors="coerce")
     if "no_of_reviews" in df.columns:
@@ -50,7 +50,7 @@ def ingest_drugs(csv_path):
 
     df = df.replace({np.nan: None})
 
-    # Inserção
+    # Insert
     conn = get_db_connection()
     cur = conn.cursor()
 
@@ -66,10 +66,10 @@ def ingest_drugs(csv_path):
     try:
         execute_values(cur, insert_query, data_tuples)
         conn.commit()
-        print(f"Sucesso! {len(df)} registos inseridos na tabela drugs_side_effects.")
+        print(f"Success! Inserted {len(df)} records into table drugs_side_effects.")
     except Exception as e:
         conn.rollback()
-        print(f"Erro na ingestão: {e}")
+        print(f"Error during ingestion: {e}")
     finally:
         cur.close()
         conn.close()

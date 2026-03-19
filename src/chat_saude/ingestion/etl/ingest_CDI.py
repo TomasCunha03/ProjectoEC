@@ -8,10 +8,10 @@ load_dotenv()
 
 
 def ingest_cdi(csv_path):
-    # 1. Carregar dados
+    # 1. Load data
     df = pd.read_csv(csv_path)
 
-    # 2. Selecionar e renomear colunas para corresponder ao SQL
+    # 2. Select and rename columns to match the SQL schema
     cols_to_keep = {
         "YearStart": "year_start",
         "YearEnd": "year_end",
@@ -37,15 +37,15 @@ def ingest_cdi(csv_path):
 
     df = df[cols_to_keep.keys()].rename(columns=cols_to_keep)
 
-    # 3. Limpeza: Converter colunas numéricas e tratar erros (como o '~')
+    # 3. Cleaning: Convert numeric columns and handle errors (e.g. '~')
     numeric_cols = ["data_value", "low_confidence_limit", "high_confidence_limit"]
     for col in numeric_cols:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # Substituir NaNs por None para o PostgreSQL aceitar como NULL
+    # Replace NaNs with None so PostgreSQL stores NULL
     df = df.replace({np.nan: None})
 
-    # 4. Inserção
+    # 4. Insert
     conn = get_db_connection()
     cur = conn.cursor()
 
@@ -56,10 +56,10 @@ def ingest_cdi(csv_path):
     try:
         execute_values(cur, query, values)
         conn.commit()
-        print(f"Sucesso: {len(df)} indicadores CDI ingeridos.")
+        print(f"Success: Ingested {len(df)} CDI indicator records.")
     except Exception as e:
         conn.rollback()
-        print(f"Erro na ingestão CDI: {e}")
+        print(f"Error during CDI ingestion: {e}")
     finally:
         cur.close()
         conn.close()

@@ -26,13 +26,13 @@ FORBIDDEN_KEYWORDS = [
 
 
 def load_prompt(yaml_path: str, key: str) -> str:
-    """Lê um prompt específico do ficheiro YAML."""
+    """Load a specific prompt from a YAML file."""
     try:
         with open(yaml_path, "r", encoding="utf-8") as file:
             prompts = yaml.safe_load(file)
             return prompts.get(key, "")
     except Exception as e:
-        print(f"Erro ao ler {yaml_path}: {e}")
+        print(f"Error reading {yaml_path}: {e}")
         return ""
 
 
@@ -81,18 +81,18 @@ def _build_postgres_uri() -> str:
 
 def get_slim_schema(db):
     """
-    Retorna um schema minimalista para economizar tokens.
-    Formato: tabela (coluna1, coluna2, ...)
+    Return a minimal schema description to save tokens.
+    Format: table (column1, column2, ...)
     """
-    # Acessa o dicionário de tabelas do SQLAlchemy internamente
+    # Access SQLAlchemy's internal table metadata
     metadata = db._metadata.tables
     slim_schema = []
 
     for table_name, table_obj in metadata.items():
-        # Pega apenas os nomes das colunas, sem tipos ou constraints pesadas
+        # Only include column names (no heavy types/constraints)
         col_names = [col.name for col in table_obj.columns]
         slim_schema.append(f"{table_name} ({', '.join(col_names)})")
-    print(f"Slim schema:\n{slim_schema}\n")  # Debug: mostrar schema minimalista
+    print(f"Slim schema:\n{slim_schema}\n")  # Debug: show the minimal schema
     return "\n".join(slim_schema)
 
 
@@ -118,7 +118,7 @@ def sql_query(user_question: str) -> str:
         gen_template = load_prompt(prompts_path, "sql_prompt")
 
         if not gen_template:
-            msg = "Erro interno: Prompt de geração de SQL não encontrado."
+            msg = "Internal error: SQL generation prompt not found."
             end_span(span, output_payload={"error": msg}, level="ERROR", status_message="prompt_missing")
             return msg
 
@@ -132,7 +132,7 @@ def sql_query(user_question: str) -> str:
 
         # 3. Validar SQL
         if not generated_sql or not _is_safe_query(generated_sql):
-            msg = "Não consegui gerar uma query SQL segura (apenas SELECT é permitido)."
+            msg = "Could not generate a safe SQL query (only SELECT is allowed)."
             end_span(
                 span,
                 output_payload={"generated_sql": generated_sql, "error": msg},
@@ -145,7 +145,7 @@ def sql_query(user_question: str) -> str:
         result = db.run_no_throw(generated_sql)
 
         if isinstance(result, str) and result.strip().startswith("Error"):
-            msg = f"A query SQL falhou: {result}"
+            msg = f"SQL query failed: {result}"
             end_span(
                 span,
                 output_payload={"generated_sql": generated_sql, "error": msg},
@@ -155,15 +155,15 @@ def sql_query(user_question: str) -> str:
             return msg
 
         if result in ("", "[]", [], None):
-            msg = "Não encontrei resultados para essa pergunta na base de dados."
+            msg = "No results found for this question in the database."
             end_span(span, output_payload={"generated_sql": generated_sql, "result": result})
             return msg
 
-        # 5. Carregar prompt de explicação e gerar resposta final
+        # 5. Load explanation prompt and generate the final response
         exp_template = load_prompt(prompts_path, "sql_explanation_prompt")
 
         if not exp_template:
-            msg = f"Resultados brutos (Erro ao carregar prompt de explicação): {result}"
+            msg = f"Raw results (error loading explanation prompt): {result}"
             end_span(span, output_payload={"generated_sql": generated_sql, "result": result})
             return msg
 

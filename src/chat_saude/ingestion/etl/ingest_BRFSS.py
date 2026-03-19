@@ -11,16 +11,16 @@ load_dotenv()
 
 def ingest_brfss(csv_path):
     if not os.path.exists(csv_path):
-        print(f"Erro: O ficheiro {csv_path} não foi encontrado.")
+        print(f"Error: File {csv_path} was not found.")
         return
 
-    print("A carregar dataset BRFSS... (isto pode demorar dependendo do tamanho)")
+    print("Loading BRFSS dataset... (this may take a while depending on size)")
     df = pd.read_csv(csv_path, low_memory=False)
 
     cols_map = {
         "_state": "state_code",
         "seqno": "sequence_no",
-        # Diagnósticos (Doenças)
+        # Diagnoses (diseases)
         "diabete4": "diagnosed_diabetes",
         "asthma3": "diagnosed_asthma",
         "asthnow": "asthma_now",
@@ -33,16 +33,16 @@ def ingest_brfss(csv_path):
         "havarth4": "diagnosed_arthritis",
         "chcscnc1": "diagnosed_skin_cancer",
         "chcocnc1": "diagnosed_other_cancer",
-        # Fatores de Risco e Prevenção
+        # Risk factors and prevention
         "bphigh6": "high_blood_pressure",
         "toldhi3": "high_cholesterol",
         "smoke100": "smoke_100",
         "_rfbing6": "alcohol_binge",
         "exerany2": "exercise_any",
-        # Rastreio de Diabetes
+        # Diabetes screening
         "pdiabts1": "last_glucose_test",
         "chkhemo3": "hba1c_check_freq",
-        # Auto-avaliação e Biometria
+        # Self-assessment and biometrics
         "genhlth": "general_health",
         "physhlth": "physical_health_days",
         "menthlth": "mental_health_days",
@@ -53,9 +53,9 @@ def ingest_brfss(csv_path):
 
     available_cols = [c for c in cols_map.keys() if c in df.columns]
     df_final = df[available_cols].rename(columns=cols_map)
-    print(f"Campos mapeados: {len(df_final.columns)} de {len(cols_map)}")
+    print(f"Mapped columns: {len(df_final.columns)} out of {len(cols_map)}")
 
-    # Limpeza e Transformação
+    # Cleaning and transformation
     if "bmi" in df_final.columns:
         df_final["bmi"] = pd.to_numeric(df_final["bmi"], errors="coerce") / 100
     if "weight_kg" in df_final.columns:
@@ -67,7 +67,7 @@ def ingest_brfss(csv_path):
 
     df_final = df_final.replace({np.nan: None})
 
-    # Inserção
+    # Insert
     conn = get_db_connection()
     cur = conn.cursor()
 
@@ -83,10 +83,10 @@ def ingest_brfss(csv_path):
     try:
         execute_values(cur, insert_query, data_tuples)
         conn.commit()
-        print(f"Sucesso! {len(df_final)} registos processados na tabela brfss_responses.")
+        print(f"Success! Processed {len(df_final)} records into table brfss_responses.")
     except Exception as e:
         conn.rollback()
-        print(f"Erro na ingestão: {e}")
+        print(f"Error during ingestion: {e}")
     finally:
         cur.close()
         conn.close()

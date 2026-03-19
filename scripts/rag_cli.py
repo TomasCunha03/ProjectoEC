@@ -6,16 +6,16 @@ from chat_saude.rag.pipeline import rag_answer
 
 while True:
     try:
-        input_query = input("> Faça uma pergunta: ").strip()
+        input_query = input("> Enter your question: ").strip()
         if not input_query:
             continue
         if input_query.lower() == "exit":
             break
         resposta = rag_answer(input_query)
-        print("\nResposta:\n" + resposta)
+        print("\nAnswer:\n" + resposta)
         print()
     except KeyboardInterrupt:
-        print("\nA encerrar...")
+        print("\nExiting...")
         break
     except Exception as e:
-        print(f"Erro: {e}\n")
+        print(f"Error: {e}\n")
