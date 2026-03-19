@@ -6,6 +6,11 @@ import yaml
 from langchain_community.utilities import SQLDatabase
 from langchain_ollama import ChatOllama
 
+from chat_saude.observability.langfuse_client import end_span, start_span
+from chat_saude.observability.logger import get_logger
+
+logger = get_logger(__name__)
+
 FORBIDDEN_KEYWORDS = [
     "INSERT",
     "UPDATE",
@@ -93,55 +98,92 @@ def get_slim_schema(db):
 
 def sql_query(user_question: str) -> str:
     """Generate and run a safe SQL query from a natural-language question."""
+    logger.info("SQL tool input: %s", user_question)
+    span = start_span(name="sql_tool", input_payload={"question": user_question})
 
-    db = SQLDatabase.from_uri(_build_postgres_uri())
+    try:
+        db = SQLDatabase.from_uri(_build_postgres_uri())
 
-    # 1. Obter apenas o essencial do schema
-    schema = get_slim_schema(db)
+        # 1. Obter apenas o essencial do schema
+        schema = get_slim_schema(db)
 
-    llm = ChatOllama(
-        model=os.getenv("SQL_LLM_MODEL", "gemma3:4b"),
-        base_url=os.getenv("OLLAMA_HOST", "http://ollama:11434"),
-        temperature=0,
-    )
+        llm = ChatOllama(
+            model=os.getenv("SQL_LLM_MODEL", "gemma3:4b"),
+            base_url=os.getenv("OLLAMA_HOST", "http://ollama:11434"),
+            temperature=0,
+        )
 
-    base_dir = os.path.dirname(__file__)
-    prompts_path = os.path.abspath(os.path.join(base_dir, "..", "..", "agents", "prompts.yaml"))
-    gen_template = load_prompt(prompts_path, "sql_prompt")
+        base_dir = os.path.dirname(__file__)
+        prompts_path = os.path.abspath(os.path.join(base_dir, "..", "..", "agents", "prompts.yaml"))
+        gen_template = load_prompt(prompts_path, "sql_prompt")
 
-    if not gen_template:
-        return "Erro interno: Prompt de geração de SQL não encontrado."
+        if not gen_template:
+            msg = "Erro interno: Prompt de geração de SQL não encontrado."
+            end_span(span, output_payload={"error": msg}, level="ERROR", status_message="prompt_missing")
+            return msg
 
-    prompt_sql = gen_template.format(schema=schema, user_question=user_question)
+        prompt_sql = gen_template.format(schema=schema, user_question=user_question)
 
-    # 2. Gerar e extrair SQL
-    raw_response = llm.invoke(prompt_sql)
-    raw_sql = raw_response.content if hasattr(raw_response, "content") else str(raw_response)
-    generated_sql = _extract_sql(raw_sql)
+        # 2. Gerar e extrair SQL
+        raw_response = llm.invoke(prompt_sql)
+        raw_sql = raw_response.content if hasattr(raw_response, "content") else str(raw_response)
+        generated_sql = _extract_sql(raw_sql)
+        logger.info("Generated SQL query: %s", generated_sql)
 
-    # 3. Validar SQL
-    if not generated_sql or not _is_safe_query(generated_sql):
-        return "Não consegui gerar uma query SQL segura (apenas SELECT é permitido)."
+        # 3. Validar SQL
+        if not generated_sql or not _is_safe_query(generated_sql):
+            msg = "Não consegui gerar uma query SQL segura (apenas SELECT é permitido)."
+            end_span(
+                span,
+                output_payload={"generated_sql": generated_sql, "error": msg},
+                level="ERROR",
+                status_message="unsafe_sql",
+            )
+            return msg
 
-    print(f"Generated SQL:\n{generated_sql}\n")  # Debug: mostrar SQL gerada
-    # 4. Executar SQL
-    result = db.run_no_throw(generated_sql)
+        # 4. Executar SQL
+        result = db.run_no_throw(generated_sql)
 
-    if isinstance(result, str) and result.strip().startswith("Error"):
-        return f"A query SQL falhou: {result}"
+        if isinstance(result, str) and result.strip().startswith("Error"):
+            msg = f"A query SQL falhou: {result}"
+            end_span(
+                span,
+                output_payload={"generated_sql": generated_sql, "error": msg},
+                level="ERROR",
+                status_message="sql_execution_error",
+            )
+            return msg
 
-    if result in ("", "[]", [], None):
-        return "Não encontrei resultados para essa pergunta na base de dados."
+        if result in ("", "[]", [], None):
+            msg = "Não encontrei resultados para essa pergunta na base de dados."
+            end_span(span, output_payload={"generated_sql": generated_sql, "result": result})
+            return msg
 
-    # 5. Carregar prompt de explicação e gerar resposta final
-    exp_template = load_prompt(prompts_path, "sql_explanation_prompt")
+        # 5. Carregar prompt de explicação e gerar resposta final
+        exp_template = load_prompt(prompts_path, "sql_explanation_prompt")
 
-    if not exp_template:
-        return f"Resultados brutos (Erro ao carregar prompt de explicação): {result}"
+        if not exp_template:
+            msg = f"Resultados brutos (Erro ao carregar prompt de explicação): {result}"
+            end_span(span, output_payload={"generated_sql": generated_sql, "result": result})
+            return msg
 
-    explain_prompt = exp_template.format(
-        user_question=user_question, generated_sql=generated_sql, result=result
-    )
+        explain_prompt = exp_template.format(
+            user_question=user_question, generated_sql=generated_sql, result=result
+        )
 
-    final = llm.invoke(explain_prompt)
-    return final.content if hasattr(final, "content") else str(final)
+        final = llm.invoke(explain_prompt)
+        final_text = final.content if hasattr(final, "content") else str(final)
+        end_span(
+            span,
+            output_payload={"generated_sql": generated_sql, "result": result, "final_text": final_text},
+        )
+        return final_text
+    except Exception as exc:
+        logger.exception("SQL tool failed")
+        end_span(
+            span,
+            output_payload={"error": str(exc)},
+            level="ERROR",
+            status_message="sql_tool_error",
+        )
+        raise

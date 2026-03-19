@@ -4,8 +4,12 @@ import re
 import ollama
 from pymongo import MongoClient
 
+from chat_saude.observability.langfuse_client import end_span, start_span
+from chat_saude.observability.logger import get_logger
+
 LLM_MODEL = "gemma3:4b"
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
+logger = get_logger(__name__)
 
 
 def _get_mongo_db():
@@ -236,18 +240,37 @@ def mongo_query(user_question: str) -> str:
     Consulta a base de dados MongoDB com base na pergunta do utilizador.
     Utiliza correspondência por regex para determinar a ação e o LLM para gerar a resposta final.
     """
-    db = _get_mongo_db()
-    action, plan = _plan_query(user_question)
-    context = _build_context(action, plan, db)
+    logger.info("Mongo tool input: %s", user_question)
+    span = start_span(name="mongo_tool", input_payload={"question": user_question})
 
-    client = ollama.Client(host=OLLAMA_HOST)
-    prompt = (
-        "Baseando-te nos dados abaixo provenientes da base de dados MongoDB de saúde, "
-        "responde em português de Portugal de forma clara e útil à pergunta do utilizador.\n\n"
-        f"Dados:\n{context}\n\n"
-        f"Pergunta: {user_question}\n\n"
-        "Responde de forma concisa e informativa, apresentando os dados de forma organizada."
-    )
+    try:
+        db = _get_mongo_db()
+        action, plan = _plan_query(user_question)
+        logger.info("Mongo tool plan: action=%s plan=%s", action, plan)
+        context = _build_context(action, plan, db)
 
-    response = client.generate(model=LLM_MODEL, prompt=prompt)
-    return response["response"]
+        client = ollama.Client(host=OLLAMA_HOST)
+        prompt = (
+            "Baseando-te nos dados abaixo provenientes da base de dados MongoDB de saúde, "
+            "responde em português de Portugal de forma clara e útil à pergunta do utilizador.\n\n"
+            f"Dados:\n{context}\n\n"
+            f"Pergunta: {user_question}\n\n"
+            "Responde de forma concisa e informativa, apresentando os dados de forma organizada."
+        )
+
+        response = client.generate(model=LLM_MODEL, prompt=prompt)
+        final_response = response["response"]
+        end_span(
+            span,
+            output_payload={"action": action, "plan": plan, "context_preview": context[:1000], "response": final_response},
+        )
+        return final_response
+    except Exception as exc:
+        logger.exception("Mongo tool failed")
+        end_span(
+            span,
+            output_payload={"error": str(exc)},
+            level="ERROR",
+            status_message="mongo_tool_error",
+        )
+        raise
