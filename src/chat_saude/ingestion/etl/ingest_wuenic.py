@@ -1,130 +1,140 @@
+import os
+
+import numpy as np
 import pandas as pd
-from sqlalchemy import text
+from chat_saude.infrastructure.database.db_connection import get_db_connection
+from dotenv import load_dotenv
+from psycopg2.extras import execute_values
 
-from chat_saude.infrastructure.database.postgres import get_engine
-
-
-def _nullable_int(value):
-    if pd.isna(value):
-        return None
-    return int(value)
+load_dotenv()
 
 
-def _nullable_float(value):
-    if pd.isna(value):
-        return None
-    return float(value)
+def ingest_wuenic(file_path):
+    if not os.path.exists(file_path):
+        print(f"Erro: O ficheiro {file_path} não foi encontrado.")
+        return
 
+    print("A carregar dataset WUENIC...")
+    df = pd.read_excel(file_path, sheet_name="wuenic_master")
 
-def _nullable_pct(value):
-    """Return percentage compatible with NUMERIC(5,2), else None."""
-    if pd.isna(value):
-        return None
-    val = float(value)
-    if abs(val) >= 1000:
-        return None
-    return round(val, 2)
+    # Normalizar nomes
+    df = df.rename(columns={
+        "Country": "country",
+        "ISOCountryCode": "iso_code",
+        "Vaccine": "vaccine",
+        "Year": "year",
+        "WUENIC": "wuenic_coverage",
+        "AdministrativeCoverage": "administrative_coverage",
+        "ChildrenVaccinated": "children_vaccinated",
+        "ChildrenInTarget": "children_target",
+        "BirthsUNPD": "births_unpd",
+        "SurvivingInfantsUNPD": "surviving_infants"
+    })
 
+    df = df.replace({np.nan: None})
 
-# WUENIC uses SQLAlchemy engine (engine.begin()), not raw psycopg2
-def clean_wuenic_data(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
+    conn = get_db_connection()
+    cur = conn.cursor()
 
-    df = df.drop(
-        columns=["Comment", "WUENICPreviousRevision", "GovernmentEstimate"], errors="ignore"
-    )
+    try:
+        # -------------------------
+        # 1. COUNTRY DIM
+        # -------------------------
+        country_df = df[["iso_code", "country"]].drop_duplicates()
 
-    df = df.dropna(subset=["Country", "Vaccine", "Year"])
+        execute_values(
+            cur,
+            """
+            INSERT INTO country_dim (iso_code, country_name)
+            VALUES %s
+            ON CONFLICT (iso_code) DO NOTHING
+            """,
+            [tuple(x) for x in country_df.to_numpy()]
+        )
 
-    df["Country"] = df["Country"].str.strip().str.upper()
-    df["Vaccine"] = df["Vaccine"].str.strip().str.upper()
+        # -------------------------
+        # 2. VACCINE DIM
+        # -------------------------
+        vaccine_df = df[["vaccine"]].drop_duplicates()
 
-    df["calculated_coverage"] = (df["ChildrenVaccinated"] / df["ChildrenInTarget"]) * 100
+        execute_values(
+            cur,
+            """
+            INSERT INTO vaccine_dim (vaccine_code)
+            VALUES %s
+            ON CONFLICT (vaccine_code) DO NOTHING
+            """,
+            [tuple(x) for x in vaccine_df.to_numpy()]
+        )
 
-    df["anomaly_flag"] = abs(df["calculated_coverage"] - df["WUENIC"]) > 5
+        # -------------------------
+        # 3. OBTER IDS
+        # -------------------------
+        cur.execute("SELECT id, iso_code FROM country_dim")
+        country_map = dict(cur.fetchall())
 
-    df = df.drop_duplicates(subset=["Country", "Vaccine", "Year"])
+        cur.execute("SELECT id, vaccine_code FROM vaccine_dim")
+        vaccine_map = dict(cur.fetchall())
 
-    return df
+        # -------------------------
+        # 4. FACT TABLE
+        # -------------------------
+        fact_data = []
 
-
-def ingest_wuenic(filepath: str):
-    engine = get_engine()
-    df = pd.read_excel(filepath, sheet_name="wuenic_master")
-    df = clean_wuenic_data(df)
-
-    with engine.begin() as conn:
-        # Insert countries
-        countries = df[["ISOCountryCode", "Country"]].drop_duplicates()
-        for _, row in countries.iterrows():
-            conn.execute(
-                text("""
-                INSERT INTO country_dim (iso_code, country_name)
-                VALUES (:iso, :name)
-                ON CONFLICT (iso_code) DO NOTHING
-            """),
-                {"iso": row["ISOCountryCode"], "name": row["Country"]},
-            )
-
-        # Insert vaccines
-        vaccines = df[["Vaccine"]].drop_duplicates()
-        for _, row in vaccines.iterrows():
-            conn.execute(
-                text("""
-                INSERT INTO vaccine_dim (vaccine_code)
-                VALUES (:code)
-                ON CONFLICT (vaccine_code) DO NOTHING
-            """),
-                {"code": row["Vaccine"]},
-            )
-
-        # Insert fact records
         for _, row in df.iterrows():
-            conn.execute(
-                text("""
-                INSERT INTO immunization_fact (
-                    country_id,
-                    vaccine_id,
-                    year,
-                    wuenic_coverage,
-                    administrative_coverage,
-                    children_vaccinated,
-                    children_target,
-                    births_unpd,
-                    surviving_infants,
-                    calculated_coverage,
-                    anomaly_flag
-                )
-                VALUES (
-                    (SELECT id FROM country_dim WHERE iso_code = :iso),
-                    (SELECT id FROM vaccine_dim WHERE vaccine_code = :vac),
-                    :year,
-                    :wuenic,
-                    :admin,
-                    :vaccinated,
-                    :target,
-                    :births,
-                    :surviving,
-                    :calc,
-                    :flag
-                )
-                ON CONFLICT DO NOTHING
-            """),
-                {
-                    "iso": row["ISOCountryCode"],
-                    "vac": row["Vaccine"],
-                    "year": int(row["Year"]),
-                    "wuenic": _nullable_pct(row.get("WUENIC")),
-                    "admin": _nullable_pct(row.get("AdministrativeCoverage")),
-                    "vaccinated": _nullable_int(row.get("ChildrenVaccinated")),
-                    "target": _nullable_int(row.get("ChildrenInTarget")),
-                    "births": _nullable_int(row.get("BirthsUNPD")),
-                    "surviving": _nullable_int(row.get("SurvivingInfantsUNPD")),
-                    "calc": _nullable_pct(row.get("calculated_coverage")),
-                    "flag": row.get("anomaly_flag"),
-                },
+            country_id = country_map.get(row["iso_code"])
+            vaccine_id = vaccine_map.get(row["vaccine"])
+
+            fact_data.append((
+                country_id,
+                vaccine_id,
+                row.get("year"),
+                row.get("wuenic_coverage"),
+                row.get("administrative_coverage"),
+                row.get("children_vaccinated"),
+                row.get("children_target"),
+                row.get("births_unpd"),
+                row.get("surviving_infants"),
+                None,  # calculated_coverage
+                False  # anomaly_flag
+            ))
+
+        execute_values(
+            cur,
+            """
+            INSERT INTO immunization_fact (
+                country_id,
+                vaccine_id,
+                year,
+                wuenic_coverage,
+                administrative_coverage,
+                children_vaccinated,
+                children_target,
+                births_unpd,
+                surviving_infants,
+                calculated_coverage,
+                anomaly_flag
             )
+            VALUES %s
+            ON CONFLICT (country_id, vaccine_id, year) DO NOTHING
+            """,
+            fact_data
+        )
+
+        conn.commit()
+        print(f"Sucesso! {len(fact_data)} registos inseridos na immunization_fact.")
+
+    except Exception as e:
+        conn.rollback()
+        print(f"Erro na ingestão: {e}")
+
+    finally:
+        cur.close()
+        conn.close()
 
 
 if __name__ == "__main__":
-    ingest_wuenic("data/wuenic-input.xlsx")
+    import sys
+
+    path = sys.argv[1] if len(sys.argv) > 1 else "wuenic-input.xlsx"
+    ingest_wuenic(path)
