@@ -1,6 +1,12 @@
 from api.rules import apply_rules
+
 from agents.tool_selection_agent import select_tool
-from chat_saude.observability.langfuse_client import end_span, finalize_trace, start_span, start_trace
+from chat_saude.observability.langfuse_client import (
+    end_span,
+    finalize_trace,
+    start_span,
+    start_trace,
+)
 from chat_saude.observability.logger import get_logger
 from chat_saude.tools.mongo_tool import mongo_query
 from chat_saude.tools.rag_tool import rag_tool
@@ -26,12 +32,16 @@ class ChatService:
                 finalize_trace(output_payload=result)
                 return result
 
-            tool_selection_span = start_span(name="tool_selection", input_payload={"message": message})
+            tool_selection_span = start_span(
+                name="tool_selection", input_payload={"message": message}
+            )
             decision = select_tool(message)
             end_span(tool_selection_span, output_payload={"decision": decision})
 
             selected_tools = decision.get("tools") or []
-            ordered_tools = [t for t in ["rag_answer", "sql_query", "mongo_query"] if t in selected_tools]
+            ordered_tools = [
+                t for t in ["rag_answer", "sql_query", "mongo_query"] if t in selected_tools
+            ]
 
             tool_to_span = {
                 "rag_answer": "rag",

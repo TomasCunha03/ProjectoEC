@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
-from chat_saude.infrastructure.database.db_connection import get_db_connection
 from dotenv import load_dotenv
 from psycopg2.extras import execute_values
+
+from chat_saude.infrastructure.database.db_connection import get_db_connection
 
 load_dotenv()
 

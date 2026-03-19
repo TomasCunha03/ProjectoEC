@@ -2,6 +2,7 @@
 Interactive CLI to test the MongoDB tool pipeline.
 Run from repo root with PYTHONPATH=src: python scripts/mongo_tool_terminal.py
 """
+
 from chat_saude.tools.mongo_tool import (
     _get_dimension_values,
     _get_mongo_db,

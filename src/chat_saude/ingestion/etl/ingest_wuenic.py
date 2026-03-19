@@ -1,6 +1,7 @@
 import pandas as pd
-from chat_saude.infrastructure.database.postgres import get_engine
 from sqlalchemy import text
+
+from chat_saude.infrastructure.database.postgres import get_engine
 
 
 def _nullable_int(value):

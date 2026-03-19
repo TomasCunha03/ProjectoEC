@@ -1,5 +1,5 @@
-import os
 import json
+import os
 import re
 
 import ollama
@@ -7,6 +7,7 @@ import yaml
 
 LLM_MODEL = "gemma3:4b"
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
+
 
 def load_prompt(file_path="prompts.yaml", key="system_prompt") -> str:
     """Load the YAML file and extract the prompt for the given key."""
@@ -23,6 +24,7 @@ def load_prompt(file_path="prompts.yaml", key="system_prompt") -> str:
     except Exception as e:
         print(f"Error reading YAML: {e}")
         return ""
+
 
 def select_tool(user_question: str) -> dict:
     """Select appropriate tool based on user question."""

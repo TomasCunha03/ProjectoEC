@@ -2,6 +2,7 @@
 Centralized DB connection and health checks.
 Uses chat_saude.config.settings with fallback to legacy env vars (SQL_*, MONGO_*, VECTOR_*).
 """
+
 import os
 
 import chromadb

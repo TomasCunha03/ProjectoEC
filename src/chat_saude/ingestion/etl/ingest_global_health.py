@@ -1,11 +1,11 @@
 import os
 
 import pandas as pd
+from dotenv import load_dotenv
+from psycopg2.extras import execute_values
 
 # Import the existing database connection utility
 from chat_saude.infrastructure.database.db_connection import get_db_connection
-from dotenv import load_dotenv
-from psycopg2.extras import execute_values
 
 # 1. Load the .env file (keep relative paths for flexibility)
 load_dotenv()

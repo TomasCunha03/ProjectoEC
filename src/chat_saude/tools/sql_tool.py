@@ -119,7 +119,9 @@ def sql_query(user_question: str) -> str:
 
         if not gen_template:
             msg = "Internal error: SQL generation prompt not found."
-            end_span(span, output_payload={"error": msg}, level="ERROR", status_message="prompt_missing")
+            end_span(
+                span, output_payload={"error": msg}, level="ERROR", status_message="prompt_missing"
+            )
             return msg
 
         prompt_sql = gen_template.format(schema=schema, user_question=user_question)
@@ -175,7 +177,11 @@ def sql_query(user_question: str) -> str:
         final_text = final.content if hasattr(final, "content") else str(final)
         end_span(
             span,
-            output_payload={"generated_sql": generated_sql, "result": result, "final_text": final_text},
+            output_payload={
+                "generated_sql": generated_sql,
+                "result": result,
+                "final_text": final_text,
+            },
         )
         return final_text
     except Exception as exc:

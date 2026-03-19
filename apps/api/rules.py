@@ -9,7 +9,8 @@ FAQ = {
     ("who are you", "who are you?", "what are you"): (
         "I am DrHouseGPT, an AI-based medical assistant. "
         "I can help you clarify health questions and preventive medicine topics. "
-        "⚠️ This information is educational and does not replace consultation with a healthcare professional."
+        "⚠️ This information is educational and does not replace "
+        "consultation with a healthcare professional."
     ),
     ("what do you do", "what is your function", "what can you do"): (
         "I answer medical questions based on scientific literature, "

@@ -1,8 +1,9 @@
-from chat_saude.rag.pipeline import rag_answer
 from chat_saude.observability.langfuse_client import end_span, start_span
 from chat_saude.observability.logger import get_logger
+from chat_saude.rag.pipeline import rag_answer
 
 logger = get_logger(__name__)
+
 
 def rag_tool(question: str):
     logger.info("RAG tool input: %s", question)

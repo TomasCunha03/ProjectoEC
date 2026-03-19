@@ -251,17 +251,24 @@ def mongo_query(user_question: str) -> str:
 
         client = ollama.Client(host=OLLAMA_HOST)
         prompt = (
-            "Based on the data below from the health MongoDB database, answer in English clearly and helpfully.\n\n"
-            f"Dados:\n{context}\n\n"
+            "Based on the data below from the health MongoDB database, answer "
+            "in English clearly and helpfully.\n\n"
+            f"Data:\n{context}\n\n"
             f"Question: {user_question}\n\n"
-            "Respond concisely and informatively, presenting the retrieved data in an organized way."
+            "Respond concisely and informatively, presenting "
+            "the retrieved data in an organized way."
         )
 
         response = client.generate(model=LLM_MODEL, prompt=prompt)
         final_response = response["response"]
         end_span(
             span,
-            output_payload={"action": action, "plan": plan, "context_preview": context[:1000], "response": final_response},
+            output_payload={
+                "action": action,
+                "plan": plan,
+                "context_preview": context[:1000],
+                "response": final_response,
+            },
         )
         return final_response
     except Exception as exc:

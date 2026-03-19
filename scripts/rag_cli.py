@@ -2,6 +2,7 @@
 Interactive CLI for RAG: asks questions and prints answers using chat_saude.rag.pipeline.
 Run from repo root with PYTHONPATH=src: python scripts/rag_cli.py
 """
+
 from chat_saude.rag.pipeline import rag_answer
 
 while True:

@@ -4,7 +4,6 @@ Fetches health topic summaries for all diseases in the PostgreSQL
 'diseases' table and stores them in MongoDB.
 """
 
-import os
 import sys
 import xml.etree.ElementTree as ET
 

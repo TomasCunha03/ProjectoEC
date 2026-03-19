@@ -15,7 +15,6 @@ def get_engine():
     database = os.getenv("SQL_DB") or settings.POSTGRES_DB
 
     uri = (
-        f"postgresql://{quote_plus(str(user))}:{quote_plus(str(password))}"
-        f"@{host}:{port}/{database}"
+        f"postgresql://{quote_plus(str(user))}:{quote_plus(str(password))}@{host}:{port}/{database}"
     )
     return create_engine(uri)
