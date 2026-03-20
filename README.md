@@ -56,6 +56,10 @@ This repository is organized into the following top-level directories:
    docker-compose up --build
    ```
 
+## Langfuse Local Setup
+If you are running **Option A** (each developer runs the whole stack locally), follow the Langfuse tutorial:
+- `docs/langfuse-setup.md`
+
 ## 6. Services and URLs
 Docker Compose exposes the following services (host:port):
 - **UI (Streamlit)**: `http://localhost:8501`
