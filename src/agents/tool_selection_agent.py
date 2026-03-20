@@ -1,4 +1,6 @@
+import json
 import os
+import re
 
 import ollama
 import yaml
@@ -8,7 +10,7 @@ OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 
 
 def load_prompt(file_path="prompts.yaml", key="system_prompt") -> str:
-    """Lê o ficheiro YAML e extrai o prompt correspondente."""
+    """Load the YAML file and extract the prompt for the given key."""
 
     if not os.path.isabs(file_path):
         file_path = os.path.join(os.path.dirname(__file__), file_path)
@@ -17,10 +19,10 @@ def load_prompt(file_path="prompts.yaml", key="system_prompt") -> str:
             prompts = yaml.safe_load(file)
             return prompts.get(key, "")
     except FileNotFoundError:
-        print(f"Erro: Ficheiro {file_path} não encontrado!")
+        print(f"Error: File {file_path} not found!")
         return ""
     except Exception as e:
-        print(f"Erro ao ler YAML: {e}")
+        print(f"Error reading YAML: {e}")
         return ""
 
 
@@ -35,16 +37,49 @@ def select_tool(user_question: str) -> dict:
 
     client = ollama.Client(host=OLLAMA_HOST)
     response = client.chat(model=LLM_MODEL, messages=messages)
-    answer = response["message"]["content"].strip().upper()
+    answer = response["message"]["content"].strip()
 
-    # Parse response
-    if "BOTH" in answer:
-        return {"tool": "both", "query": user_question}
-    elif "RAG" in answer:
-        return {"tool": "rag_answer", "query": user_question}
-    elif "SQL" in answer:
-        return {"tool": "sql_query", "query": user_question}
-    elif "MONGO" in answer:
-        return {"tool": "mongo_query", "query": user_question}
-    else:
-        return {"tool": None, "query": user_question}
+    # Parse response as JSON: { "tools": ["RAG", "SQL", ...] }
+    parsed = None
+    try:
+        parsed = json.loads(answer)
+    except Exception:
+        # Handle code fences / extra text by extracting the first JSON object.
+        match = re.search(r"\{.*\}", answer, flags=re.DOTALL)
+        if match:
+            try:
+                parsed = json.loads(match.group(0))
+            except Exception:
+                parsed = None
+
+    tool_map = {
+        "RAG": "rag_answer",
+        "SQL": "sql_query",
+        "MONGO": "mongo_query",
+    }
+
+    selected_tools: list[str] = []
+    tools_list = None
+    if isinstance(parsed, dict):
+        for k, v in parsed.items():
+            if isinstance(k, str) and k.strip().lower() == "tools":
+                tools_list = v
+                break
+
+    if isinstance(tools_list, list):
+        for t in tools_list:
+            if not isinstance(t, str):
+                continue
+            key = t.strip().upper()
+            if key in tool_map:
+                selected_tools.append(tool_map[key])
+
+    # De-duplicate while preserving order
+    seen = set()
+    ordered_tools: list[str] = []
+    for t in selected_tools:
+        if t not in seen:
+            seen.add(t)
+            ordered_tools.append(t)
+
+    return {"tools": ordered_tools, "query": user_question}

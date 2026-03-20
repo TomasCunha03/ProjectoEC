@@ -7,6 +7,7 @@ Pillow
 psycopg2-binary
 pymongo
 chromadb
+openpyxl
 
 # Dados e APIs
 pandas
@@ -30,9 +31,11 @@ scikit-learn
 fastapi
 uvicorn
 pydantic
+pydantic-settings
 
 # LangChain SQL tool
 langchain-core>=0.3.0
 langchain-ollama>=0.2.0
 langchain-community>=0.3.0
 SQLAlchemy
+langfuse
