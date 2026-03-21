@@ -36,7 +36,7 @@ def select_tool(user_question: str) -> dict:
     ]
 
     client = ollama.Client(host=OLLAMA_HOST)
-    response = client.chat(model=LLM_MODEL, messages=messages)
+    response = client.chat(model=LLM_MODEL, messages=messages, options={"temperature": 0.0})
     answer = response["message"]["content"].strip()
 
     # Parse response as JSON: { "tools": ["RAG", "SQL", ...] }
