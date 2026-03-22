@@ -48,6 +48,6 @@ def rag_answer(query: str) -> str:
     prompt = rag_template.format(context=context, query=query)
 
     client = ollama.Client(host="http://ollama:11434")
-    response = client.generate(model=LLM_MODEL, prompt=prompt)
+    response = client.generate(model=LLM_MODEL, prompt=prompt, options={"temperature": 0.0})
 
     return response["response"]
