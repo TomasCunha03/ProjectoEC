@@ -139,7 +139,5 @@ def ingest_wuenic(file_path):
 
 
 if __name__ == "__main__":
-    import sys
-
-    path = sys.argv[1] if len(sys.argv) > 1 else "wuenic-input.xlsx"
+    path = "/app/data/wuenic-input.xlsx"
     ingest_wuenic(path)

@@ -65,6 +65,11 @@ def ingest_home_remedies():
     embeddings = embedding_model.encode(chunks, normalize_embeddings=True).tolist()
 
     # 4. Insert into ChromaDB
+    collections = client_chromadb.list_collections()
+    names = [c.name for c in collections]
+
+    if COLLECTION_NAME in names:
+        client_chromadb.delete_collection(COLLECTION_NAME)
     collection = client_chromadb.get_or_create_collection(name=COLLECTION_NAME)
 
     ids = [str(uuid.uuid4()) for _ in chunks]

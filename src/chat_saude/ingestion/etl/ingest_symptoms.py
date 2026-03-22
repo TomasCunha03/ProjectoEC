@@ -12,30 +12,30 @@ def ingest_data():
     cur = conn.cursor()
 
     # 1. Load CSVs
-    df_desc = pd.read_csv("symptom_Description.csv")
-    df_prec = pd.read_csv("symptom_precaution.csv")
-    df_sev = pd.read_csv("Symptom-severity.csv")
-    df_mapping = pd.read_csv("dataset.csv")
+    df_desc = pd.read_csv("/app/data/symptom_Description.csv")
+    df_prec = pd.read_csv("/app/data/symptom_precaution.csv")
+    df_sev = pd.read_csv("/app/data/Symptom-severity.csv")
+    df_mapping = pd.read_csv("/app/data/dataset.csv")
 
     # 2. Ingest Diseases and Descriptions
     for _, row in df_desc.iterrows():
         cur.execute(
-            (
-                "INSERT INTO diseases (name, description) "
-                "VALUES (%s, %s) "
-                "ON CONFLICT (name) DO NOTHING"
-            ),
+            """
+                INSERT INTO diseases (name, description)
+                VALUES (%s, %s) 
+                ON CONFLICT (name) DO NOTHING
+                """,
             (row["Disease"].strip(), row["Description"]),
         )
 
     # 3. Ingest Symptoms and Severities
     for _, row in df_sev.iterrows():
         cur.execute(
-            (
-                "INSERT INTO symptoms (name, severity_weight)"
-                " VALUES (%s, %s) "
-                "ON CONFLICT (name) DO NOTHING",
-            ),
+            """
+                INSERT INTO symptoms (name, severity_weight)
+                VALUES (%s, %s) 
+                ON CONFLICT (name) DO NOTHING
+                """,
             (row["Symptom"].strip().replace("_", " "), row["weight"]),
         )
 
