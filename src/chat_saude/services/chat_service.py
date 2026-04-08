@@ -88,17 +88,17 @@ class ChatService:
                 except Exception as e:
                     replies_by_tool[tool] = f"ERROR: {str(e)}"
                 end_span(tool_span, output_payload={"reply": replies_by_tool[tool]})
-            # ✅ NOVO BLOCO — DETETAR ERROS
+            # NOVO BLOCO — DETETAR ERROS
             errors = [
                 r for r in replies_by_tool.values()
                 if isinstance(r, str) and r.startswith("ERROR")
             ]
 
-# ✅ SE HOUVER ERROS → PARAR AQUI
+#  SE HOUVER ERROS → PARAR AQUI
             if errors:
                 reply = self._handle_errors(errors, message)
 
-# 🔽 CASO NÃO HAJA ERROS → fluxo normal
+#  CASO NÃO HAJA ERROS → fluxo normal
             elif not ordered_tools:
                 reply = "Sorry, I cannot answer that question."
 
