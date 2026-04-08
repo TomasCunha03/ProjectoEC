@@ -17,7 +17,33 @@ logger = get_logger(__name__)
 
 class ChatService:
     """Orchestrates chat: rules, tool selection, and tool execution."""
+    def _handle_errors(self, errors: list[str], message: str) -> str:
+        return (
+        "I was unable to provide a complete answer with the information available."
+        "Can you provide more information or reformulate the question? "
+        "That way I can help you better."
+    )
 
+    def _build_final_answer(self, user_message: str, raw_tool_output: str) -> str:
+        prompt = f"""
+        You are a professional medical assistant.
+
+        The user asked:
+        "{user_message}"
+
+        You have the following information from internal systems:
+        {raw_tool_output}
+
+        RULES:
+        - NEVER mention tool names (RAG, SQL, Mongo)
+        - ALWAYS respond in natural, human-friendly language
+        - Combine information from multiple sources into one answer
+
+        Write a clear, natural, and user-friendly answer.
+        """
+
+        return call_llm(prompt)
+    
     def handle_chat(self, message: str) -> dict:
         logger.info("Incoming chat message: %s", message)
         start_trace(name="chat_request", input_payload={"message": message})
@@ -57,23 +83,32 @@ class ChatService:
             replies_by_tool: dict[str, str] = {}
             for tool in ordered_tools:
                 tool_span = start_span(name=tool_to_span[tool], input_payload={"message": message})
-                replies_by_tool[tool] = tool_to_fn[tool](message)
+                try:
+                    replies_by_tool[tool] = tool_to_fn[tool](message)
+                except Exception as e:
+                    replies_by_tool[tool] = f"ERROR: {str(e)}"
                 end_span(tool_span, output_payload={"reply": replies_by_tool[tool]})
+            # ✅ NOVO BLOCO — DETETAR ERROS
+            errors = [
+                r for r in replies_by_tool.values()
+                if isinstance(r, str) and r.startswith("ERROR")
+            ]
 
-            if not ordered_tools:
+# ✅ SE HOUVER ERROS → PARAR AQUI
+            if errors:
+                reply = self._handle_errors(errors, message)
+
+# 🔽 CASO NÃO HAJA ERROS → fluxo normal
+            elif not ordered_tools:
                 reply = "Sorry, I cannot answer that question."
+
             elif len(ordered_tools) == 1:
                 reply = replies_by_tool[ordered_tools[0]]
-            else:
-                parts = []
-                for tool in ordered_tools:
-                    if tool == "rag_answer":
-                        parts.append(f"RAG answer:\n{replies_by_tool[tool]}")
-                    elif tool == "sql_query":
-                        parts.append(f"SQL answer:\n{replies_by_tool[tool]}")
-                    elif tool == "mongo_query":
-                        parts.append(f"Mongo answer:\n{replies_by_tool[tool]}")
-                reply = "\n\n".join(parts)
+
+            elif len(ordered_tools) > 1:
+                combined = "\n".join(replies_by_tool.values())
+                reply = self._build_final_answer(message, combined)
+
 
             result = {
                 "response": reply,
