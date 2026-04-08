@@ -32,7 +32,7 @@ def load_prompt(yaml_path: str, key: str) -> str:
             prompts = yaml.safe_load(file)
             return prompts.get(key, "")
     except Exception as e:
-        print(f"Error reading {yaml_path}: {e}")
+        logger.warning("Error reading %s: %s", yaml_path, e)
         return ""
 
 
@@ -92,7 +92,7 @@ def get_slim_schema(db):
         # Only include column names (no heavy types/constraints)
         col_names = [col.name for col in table_obj.columns]
         slim_schema.append(f"{table_name} ({', '.join(col_names)})")
-    print(f"Slim schema:\n{slim_schema}\n")  # Debug: show the minimal schema
+    logger.info("Slim schema: %s", slim_schema)
     return "\n".join(slim_schema)
 
 

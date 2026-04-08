@@ -1,10 +1,14 @@
 import os
+import time
 
 import ollama
 import yaml
 from sentence_transformers import CrossEncoder, SentenceTransformer
 
 from chat_saude.infrastructure.database.chroma import get_chroma_client
+from chat_saude.observability.logger import get_logger
+
+logger = get_logger(__name__)
 
 COLLECTION_NAME = "pmc_medicine_preventive"
 
@@ -14,7 +18,7 @@ reranker = CrossEncoder("BAAI/bge-reranker-base")
 chroma_client = get_chroma_client()
 collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
 
-LLM_MODEL = "gemma3:4b"
+LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:1b")
 
 # Load rag_prompt from prompts.yaml (src/chat_saude/rag: .. -> chat_saude, .. -> src, agents)
 agents_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "agents"))
@@ -22,6 +26,8 @@ prompts_path = os.path.join(agents_dir, "prompts.yaml")
 
 
 def rag_answer(query: str) -> str:
+    logger.info("RAG pipeline start: query=%s", query[:80])
+
     # embedding
     emb = embedding_model.encode(query).tolist()
 
@@ -29,6 +35,7 @@ def rag_answer(query: str) -> str:
     results = collection.query(query_embeddings=[emb], n_results=5)
 
     docs = results["documents"][0]
+    logger.info("RAG retrieved %d docs", len(docs))
 
     # rerank
     pairs = [(query, d) for d in docs]
@@ -48,6 +55,9 @@ def rag_answer(query: str) -> str:
     prompt = rag_template.format(context=context, query=query)
 
     client = ollama.Client(host="http://ollama:11434")
+    t0 = time.perf_counter()
     response = client.generate(model=LLM_MODEL, prompt=prompt, options={"temperature": 0.0})
+    elapsed = time.perf_counter() - t0
+    logger.info("RAG LLM response in %.2fs model=%s", elapsed, LLM_MODEL)
 
     return response["response"]

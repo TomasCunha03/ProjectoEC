@@ -2,6 +2,10 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
+from chat_saude.observability.logger import get_logger
+
+logger = get_logger(__name__)
+
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 
@@ -47,10 +51,9 @@ non_medical_embeddings = model.encode(NON_MEDICAL_EXAMPLES)
 
 
 def validate_query(query: str):
-
     if not query or len(query.strip()) < 3:
+        logger.warning("Query rejected (too short): %r", query)
         return "Please enter a valid question."
-
     return None
 
 
@@ -58,12 +61,12 @@ def check_faq(query: str):
     q = query.lower()
     for keys, answer in FAQ.items():
         if any(k in q for k in keys):
+            logger.info("FAQ match for query: %r", query)
             return answer
     return None
 
 
 def check_domain(query: str):
-
     query_embedding = model.encode([query])
 
     sim_medical = cosine_similarity(query_embedding, medical_embeddings)
@@ -72,7 +75,15 @@ def check_domain(query: str):
     medical_score = np.max(sim_medical)
     non_medical_score = np.max(sim_non_medical)
 
+    logger.info(
+        "Domain check: medical=%.3f non_medical=%.3f query=%r",
+        medical_score,
+        non_medical_score,
+        query[:80],
+    )
+
     if non_medical_score > medical_score:
+        logger.warning("Query rejected (out of domain): %r", query[:80])
         return "This assistant answers only health and medicine questions."
 
     return None
