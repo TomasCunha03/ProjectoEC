@@ -19,3 +19,13 @@ pull-model:
 git-stats:
 	@python scripts/git_stats.py
 
+lint:
+	ruff check .
+
+fix:
+	ruff check . --fix
+
+format:
+	ruff format .
+
+check-all: lint format
