@@ -109,6 +109,7 @@ CREATE TABLE IF NOT EXISTS brfss_responses (
     general_health INT,          -- GENHLTH: Self-rated health
     physical_health_days INT,    -- PHYSHLTH: Poor physical health days
     mental_health_days INT,      -- MENTHLTH: Poor mental health days
+    last_glucose_test INT,
     
     -- Biometric data
     weight_kg DECIMAL(6,2),      -- WTKG3

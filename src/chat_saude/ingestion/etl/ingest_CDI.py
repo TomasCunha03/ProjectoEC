@@ -67,7 +67,5 @@ def ingest_cdi(csv_path):
 
 
 if __name__ == "__main__":
-    import sys
-
-    path = sys.argv[1] if len(sys.argv) > 1 else "U.S._Chronic_Disease_Indicators.csv"
+    path = "/app/data/U.S._Chronic_Disease_Indicators.csv"
     ingest_cdi(path)
