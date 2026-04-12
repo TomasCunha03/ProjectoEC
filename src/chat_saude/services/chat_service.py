@@ -1,3 +1,6 @@
+from urllib import response
+
+from ollama import Client
 from api.rules import apply_rules
 
 from agents.tool_selection_agent import select_tool
@@ -13,7 +16,7 @@ from chat_saude.tools.rag_tool import rag_tool
 from chat_saude.tools.sql_tool import sql_query
 
 logger = get_logger(__name__)
-
+client = Client(host="http://ollama:11434")
 
 class ChatService:
     """Orchestrates chat: rules, tool selection, and tool execution."""
@@ -42,7 +45,22 @@ class ChatService:
         Write a clear, natural, and user-friendly answer.
         """
 
-        return call_llm(prompt)
+        try:
+            response = requests.post(
+                "http://ollama:11434/api/generate",
+                json={
+                    "model": "llama3", 
+                    "prompt": prompt,
+                    "stream": False
+                },
+                timeout=30
+            )
+
+            return response.json().get("response", raw_tool_output)
+
+        except Exception as e:
+            logger.error(f"Ollama error: {e}")
+            return raw_tool_output
     
     def handle_chat(self, message: str) -> dict:
         logger.info("Incoming chat message: %s", message)
