@@ -77,5 +77,5 @@ def ingest_global_stats(csv_path):
 
 if __name__ == "__main__":
     # Correct CSV path
-    csv_path = "/Users/matildefernandes/Desktop/PEC/Global Health Statistics.csv"
+    csv_path = "/app/data/Global Health Statistics.csv"
     ingest_global_stats(csv_path)

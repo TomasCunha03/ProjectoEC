@@ -5,7 +5,7 @@ import chromadb
 from sentence_transformers import SentenceTransformer
 
 # Files
-DATA_DIR = "../../../../data"
+DATA_DIR = "/app/data"
 JSON_FILES = ["pmc_simples.json", "pmc_preventive_medicine_clean.json"]
 
 

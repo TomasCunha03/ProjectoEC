@@ -48,3 +48,6 @@ __pycache__/
 dist/
 build/
 
+# Datasets
+data/*.csv
+
