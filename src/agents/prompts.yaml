@@ -134,8 +134,12 @@ sql_prompt: |
   You have access to the following database schema:
   {schema}
 
+  You also have table-content context (business meaning, joins, common filters, and value hints):
+  {data_context}
+
   Rules:
     - Use ONLY the provided tables and columns.
+    - Use the table-content context to choose the correct tables, joins, and filters.
     - For string comparisons in WHERE clauses, ALWAYS use 'ILIKE' instead of '=' to ensure case-insensitive matching (e.g., column ILIKE 'value').
     - Return ONLY the SQL code.
     - If the user question contains symptoms or medical terms in another language (e.g., "febre"), ALWAYS translate them to English before generating the SQL query.

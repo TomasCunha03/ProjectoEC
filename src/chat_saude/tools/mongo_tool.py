@@ -2,6 +2,7 @@ import os
 import re
 
 import ollama
+import yaml
 from pymongo import MongoClient
 
 from chat_saude.observability.langfuse_client import end_span, start_span
@@ -10,6 +11,8 @@ from chat_saude.observability.logger import get_logger
 LLM_MODEL = "gemma3:4b"
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 logger = get_logger(__name__)
+AGENTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "agents"))
+MONGO_CATALOG_PATH = os.path.join(AGENTS_DIR, "mongo_catalog.yaml")
 
 
 def _get_mongo_db():
@@ -21,6 +24,37 @@ def _get_mongo_db():
         serverSelectionTimeoutMS=5000,
     )
     return client[os.getenv("MONGO_DB", "db_saude_nosql")]
+
+
+def _load_catalog_text() -> str:
+    try:
+        with open(MONGO_CATALOG_PATH, encoding="utf-8") as file:
+            catalog = yaml.safe_load(file) or {}
+    except FileNotFoundError:
+        logger.warning("Mongo catalog not found: %s", MONGO_CATALOG_PATH)
+        return ""
+    except Exception as exc:
+        logger.warning("Failed to read Mongo catalog %s: %s", MONGO_CATALOG_PATH, exc)
+        return ""
+
+    lines = []
+    summary = catalog.get("summary")
+    if summary:
+        lines.append(f"Mongo catalog summary: {summary}")
+
+    collections = catalog.get("collections", [])
+    if collections:
+        lines.append("Mongo catalog collections:")
+        for collection in collections:
+            name = collection.get("name", "unknown")
+            purpose = collection.get("purpose", "")
+            grain = collection.get("grain", "")
+            searchable_fields = collection.get("searchable_fields", [])
+            lines.append(f"  - {name}: {purpose} Grain: {grain}.")
+            if searchable_fields:
+                lines.append(f"    Searchable fields: {', '.join(searchable_fields)}.")
+
+    return "\n".join(lines)
 
 
 def _search_indicators(db, keyword: str, limit: int = 10) -> list[dict]:
@@ -245,9 +279,16 @@ def mongo_query(user_question: str) -> str:
 
     try:
         db = _get_mongo_db()
+        catalog_context = _load_catalog_text()
         action, plan = _plan_query(user_question)
         logger.info("Mongo tool plan: action=%s plan=%s", action, plan)
-        context = _build_context(action, plan, db)
+        data_context = _build_context(action, plan, db)
+
+        context_parts = []
+        if catalog_context:
+            context_parts.append(catalog_context)
+        context_parts.append(data_context)
+        context = "\n\n".join(context_parts)
 
         client = ollama.Client(host=OLLAMA_HOST)
         prompt = (

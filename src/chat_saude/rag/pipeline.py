@@ -19,6 +19,47 @@ LLM_MODEL = "gemma3:4b"
 # Load rag_prompt from prompts.yaml (src/chat_saude/rag: .. -> chat_saude, .. -> src, agents)
 agents_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "agents"))
 prompts_path = os.path.join(agents_dir, "prompts.yaml")
+rag_corpus_path = os.path.join(agents_dir, "rag_corpus.yaml")
+
+
+def _load_rag_corpus_text() -> str:
+    try:
+        with open(rag_corpus_path, encoding="utf-8") as file:
+            corpus = yaml.safe_load(file) or {}
+    except FileNotFoundError:
+        return ""
+    except Exception:
+        return ""
+
+    lines = []
+    summary = corpus.get("summary")
+    if summary:
+        lines.append(f"RAG corpus summary: {summary}")
+
+    corpus_info = corpus.get("corpus", {})
+    collection_name = corpus_info.get("collection_name")
+    domain = corpus_info.get("domain")
+    document_type = corpus_info.get("document_type")
+    strengths = corpus_info.get("strengths", [])
+    limitations = corpus_info.get("limitations", [])
+    metadata_fields = corpus_info.get("metadata_fields", [])
+
+    if collection_name or domain or document_type:
+        lines.append("RAG corpus details:")
+        if collection_name:
+            lines.append(f"  - Collection: {collection_name}")
+        if domain:
+            lines.append(f"  - Domain: {domain}")
+        if document_type:
+            lines.append(f"  - Document type: {document_type}")
+    if metadata_fields:
+        lines.append(f"  - Metadata fields: {', '.join(metadata_fields)}")
+    if strengths:
+        lines.append(f"  - Strengths: {'; '.join(strengths)}")
+    if limitations:
+        lines.append(f"  - Limitations: {'; '.join(limitations)}")
+
+    return "\n".join(lines)
 
 
 def rag_answer(query: str) -> str:
@@ -37,6 +78,10 @@ def rag_answer(query: str) -> str:
     ranked_docs = [d for _, d in sorted(zip(scores, docs), reverse=True)]
 
     context = "\n".join(ranked_docs[:3])
+
+    corpus_context = _load_rag_corpus_text()
+    if corpus_context:
+        context = f"{corpus_context}\n\nRetrieved passages:\n{context}"
 
     with open(prompts_path, encoding="utf-8") as file:
         prompts = yaml.safe_load(file)
