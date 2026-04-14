@@ -194,7 +194,11 @@ def check_domain(query: str):
     # Case B: It's clearly non-medical (with a 0.05 safety margin)
     if non_medical_score > (medical_score + 0.05):
         logger.warning("Query rejected (clearly non-medical): %r", query)
-        return "I am a specialized medical assistant. I can only answer questions related to health, medicine, and wellness."
+        text_message = (
+            "I am a specialized medical assistant. I can only answer questions related to health, "
+            "medicine and wellness."
+            )
+        return text_message
 
     # Case C: It's a medical question (let it pass to the system)
     return None
