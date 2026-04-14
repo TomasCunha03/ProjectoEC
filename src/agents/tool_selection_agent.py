@@ -5,8 +5,14 @@ import re
 import ollama
 import yaml
 
-LLM_MODEL = "gemma3:4b"
+from chat_saude.observability.logger import get_logger
+
+logger = get_logger(__name__)
+
+LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:1b")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
+
+logger.info("Tool selection agent using model: %s", LLM_MODEL)
 
 
 def load_prompt(file_path="prompts.yaml", key="system_prompt") -> str:
@@ -44,12 +50,12 @@ def select_tool(user_question: str) -> dict:
     try:
         parsed = json.loads(answer)
     except Exception:
-        # Handle code fences / extra text by extracting the first JSON object.
         match = re.search(r"\{.*\}", answer, flags=re.DOTALL)
         if match:
             try:
                 parsed = json.loads(match.group(0))
             except Exception:
+                logger.warning("Tool selection: failed to parse LLM response: %s", answer[:200])
                 parsed = None
 
     tool_map = {
@@ -82,4 +88,5 @@ def select_tool(user_question: str) -> dict:
             seen.add(t)
             ordered_tools.append(t)
 
+    logger.info("Tool selection result: tools=%s query=%s", ordered_tools, user_question[:80])
     return {"tools": ordered_tools, "query": user_question}

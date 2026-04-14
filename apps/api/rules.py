@@ -2,6 +2,10 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
+from chat_saude.observability.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Load the model
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
@@ -133,6 +137,8 @@ non_medical_embeddings = model.encode(NON_MEDICAL_EXAMPLES)
 
 def validate_query(query: str):
     if not query or len(query.strip()) < 3:
+        logger.warning("Query rejected (too short): %r", query)
+        return "Please enter a valid question."
         return "Please enter a valid question with more detail."
     return None
 
@@ -160,6 +166,7 @@ def check_faq(query: str, threshold: float = 0.45):
 
     best_match_idx = np.argmax(similarities)
     if similarities[best_match_idx] >= threshold:
+        logger.info("FAQ match found: %r", faq_answers[best_match_idx])
         return faq_answers[best_match_idx]
 
     return None
@@ -175,20 +182,23 @@ def check_domain(query: str):
     non_medical_score = np.max(cosine_similarity(query_embedding, non_medical_embeddings))
 
     # Debugging
-    print(
+    logger.info(
         f"[DEBUG] Medical Score: {medical_score:.2f} | Non-Medical Score: {non_medical_score:.2f}"
     )
 
     # Case A: The query is completely unrelated to anything the model knows
     if medical_score < 0.25 and non_medical_score < 0.25:
+        logger.warning("Query rejected (completely unrelated): %r", query)
         return "I'm not quite sure what you're asking. Could you rephrase your question?"
 
     # Case B: It's clearly non-medical (with a 0.05 safety margin)
     if non_medical_score > (medical_score + 0.05):
-        return (
-            "I am a specialized medical assistant. I can only answer questions related "
-            "to health, medicine, and wellness."
+        logger.warning("Query rejected (clearly non-medical): %r", query)
+        text_message = (
+            "I am a specialized medical assistant. I can only answer questions related to health, "
+            "medicine and wellness."
         )
+        return text_message
 
     # Case C: It's a medical question (let it pass to the system)
     return None

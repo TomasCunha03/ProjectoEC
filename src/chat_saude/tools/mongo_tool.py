@@ -1,5 +1,6 @@
 import os
 import re
+import time
 
 import ollama
 import yaml
@@ -8,7 +9,7 @@ from pymongo import MongoClient
 from chat_saude.observability.langfuse_client import end_span, start_span
 from chat_saude.observability.logger import get_logger
 
-LLM_MODEL = "gemma3:4b"
+LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:1b")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 logger = get_logger(__name__)
 AGENTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "agents"))
@@ -300,7 +301,10 @@ def mongo_query(user_question: str) -> str:
             "the retrieved data in an organized way."
         )
 
+        t0 = time.perf_counter()
         response = client.generate(model=LLM_MODEL, prompt=prompt)
+        elapsed = time.perf_counter() - t0
+        logger.info("Mongo LLM response in %.2fs model=%s", elapsed, LLM_MODEL)
         final_response = response["response"]
         end_span(
             span,

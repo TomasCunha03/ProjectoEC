@@ -1,3 +1,5 @@
+import time
+
 from api.rules import apply_rules
 
 from agents.tool_selection_agent import select_tool
@@ -19,6 +21,7 @@ class ChatService:
     """Orchestrates chat: rules, tool selection, and tool execution."""
 
     def handle_chat(self, message: str) -> dict:
+        t_start = time.perf_counter()
         logger.info("Incoming chat message: %s", message)
         start_trace(name="chat_request", input_payload={"message": message})
 
@@ -39,6 +42,7 @@ class ChatService:
             end_span(tool_selection_span, output_payload={"decision": decision})
 
             selected_tools = decision.get("tools") or []
+            logger.info("Tools selected: %s", selected_tools)
             ordered_tools = [
                 t for t in ["rag_answer", "sql_query", "mongo_query"] if t in selected_tools
             ]
@@ -75,6 +79,12 @@ class ChatService:
                         parts.append(f"Mongo answer:\n{replies_by_tool[tool]}")
                 reply = "\n\n".join(parts)
 
+            elapsed = time.perf_counter() - t_start
+            logger.info(
+                "Chat response in %.2fs tool_used=%s",
+                elapsed,
+                ",".join(ordered_tools) if ordered_tools else "none",
+            )
             result = {
                 "response": reply,
                 "tool_used": ",".join(ordered_tools) if ordered_tools else "none",
