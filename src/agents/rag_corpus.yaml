@@ -1,0 +1,37 @@
+version: 1
+summary: Inventory of the preventive medicine RAG corpus stored in ChromaDB.
+
+global_rules:
+  - Use this file to describe the corpus, not to enumerate every retrieved passage.
+  - Retrieved chunks should be treated as evidence snippets, not as structured facts.
+  - Prefer simple language in the final answer unless the user asks for technical detail.
+
+corpus:
+  collection_name: pmc_medicine_preventive
+  domain: Preventive medicine, scientific explanations, guidelines, and home-care guidance.
+  source_documents:
+    - pmc_simples.json
+    - pmc_preventive_medicine_clean.json
+  language: English
+  document_type: Scientific and educational article text chunks.
+  chunking_strategy:
+    method: fixed-size character chunks
+    chunk_size: 800
+    overlap: 200
+  embedding_model: BAAI/bge-base-en-v1.5
+  reranker_model: BAAI/bge-reranker-base
+  metadata_fields:
+    - title
+    - source_url
+    - keyword
+  strengths:
+    - Good for mechanisms, prevention strategies, and explanatory answers.
+    - Useful when the answer should be grounded in literature-style passages.
+  limitations:
+    - Not a structured statistics source.
+    - Not suitable for country-year-population queries.
+    - Coverage depends on the loaded article set.
+  good_questions:
+    - How does this condition work?
+    - What are prevention strategies for this disease?
+    - Explain the scientific background of a preventive intervention.

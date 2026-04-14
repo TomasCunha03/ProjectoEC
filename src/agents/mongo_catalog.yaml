@@ -1,0 +1,64 @@
+version: 1
+summary: Lightweight MongoDB catalog for WHO GHO metadata and MedlinePlus disease summaries.
+
+global_rules:
+  - Use collection names and field names exactly as stored.
+  - Prefer regex/ILIKE-like matching for human text fields.
+  - Use the catalog to interpret what each collection contains, not to invent fields.
+  - When answering with WHO data, distinguish indicator metadata from dimension values.
+
+collections:
+  - name: gho_indicators
+    source: WHO Global Health Observatory API
+    purpose: Indicator metadata and discovery.
+    grain: One row per indicator.
+    searchable_fields:
+      - IndicatorName
+      - IndicatorCode
+    common_questions:
+      - What indicators exist for a disease or topic?
+      - Find an indicator by name or code.
+    retrieval_notes:
+      - Search IndicatorName and IndicatorCode with case-insensitive regex.
+
+  - name: gho_dimensions
+    source: WHO Global Health Observatory API
+    purpose: Dimension metadata such as country, age group, sex, region, and year-related dimensions.
+    grain: One row per dimension.
+    searchable_fields:
+      - Code
+      - Title
+    common_questions:
+      - What dimensions does WHO track?
+      - Which dimension should be used for country, age group, or sex?
+    retrieval_notes:
+      - Use this collection to discover the available dimension codes before querying values.
+
+  - name: gho_<dimension>_dimension_values
+    source: WHO Global Health Observatory API
+    purpose: Values for each WHO dimension collection.
+    grain: One row per dimension value.
+    searchable_fields:
+      - Code
+      - Title
+    common_questions:
+      - What values are available for a given dimension?
+      - Which countries, age groups, or regions exist in the dataset?
+    retrieval_notes:
+      - Collection name is built dynamically from the dimension code.
+      - Use Code and Title for display and matching.
+
+  - name: medlineplus_health_topics
+    source: MedlinePlus / NIH
+    purpose: Disease summaries and general health information.
+    grain: One row per disease topic.
+    searchable_fields:
+      - disease_name
+      - title
+      - full_summary
+    common_questions:
+      - What is this disease?
+      - Tell me about symptoms, causes, or basic treatment info.
+    retrieval_notes:
+      - Remove HTML from full_summary before displaying it.
+      - Prefer title when present, otherwise use disease_name.

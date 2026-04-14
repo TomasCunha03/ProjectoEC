@@ -1,0 +1,730 @@
+version: 2
+summary: Detailed SQL data dictionary for query generation and semantic grounding.
+global_rules:
+  - Prefer ILIKE for string matching.
+  - Prefer explicit table aliases and explicit JOIN conditions.
+  - For percentages/rates, preserve decimals and avoid integer casts unless requested.
+  - When computing prevalence-like rates from binary coded BRFSS columns, use AVG(column) and multiply by 100 if needed.
+  - If user asks for top/bottom entities, include ORDER BY and LIMIT.
+  - For time trends, group by year and order by year.
+
+tables:
+  - name: diseases
+    description: Disease master dimension table.
+    grain: One row per disease entity.
+    primary_key: disease_id
+    unique_constraints:
+      - name
+    common_filters:
+      - name (ILIKE)
+    join_keys:
+      - disease_id
+      - name
+    columns:
+      - name: disease_id
+        type: SERIAL
+        nullable: false
+        description: Surrogate key of disease.
+      - name: name
+        type: VARCHAR(255)
+        nullable: false
+        description: Canonical disease name.
+        hints: Use ILIKE for disease name search.
+      - name: description
+        type: TEXT
+        nullable: true
+        description: Optional disease narrative/description.
+    value_examples:
+      name: Diabetes, Hypertension, Asthma
+    query_patterns:
+      - Find disease by name
+      - Join to symptoms via disease_symptoms
+      - Join to precautions via disease_precautions
+
+  - name: symptoms
+    description: Symptom master table with optional severity score.
+    grain: One row per symptom.
+    primary_key: symptom_id
+    unique_constraints:
+      - name
+    common_filters:
+      - name (ILIKE)
+      - severity_weight
+    join_keys:
+      - symptom_id
+      - name
+    columns:
+      - name: symptom_id
+        type: SERIAL
+        nullable: false
+        description: Surrogate key of symptom.
+      - name: name
+        type: VARCHAR(255)
+        nullable: false
+        description: Symptom label in English.
+      - name: severity_weight
+        type: INT
+        nullable: true
+        description: Relative severity score of symptom.
+        hints: Higher values indicate greater symptom severity.
+    value_examples:
+      name: fever, cough, headache, fatigue
+      severity_weight: 1-10
+    query_patterns:
+      - List symptoms for a disease
+      - Rank symptoms by severity_weight
+
+  - name: disease_symptoms
+    description: Bridge table for many-to-many relationship between diseases and symptoms.
+    grain: One row per disease and symptom pair.
+    primary_key: (disease_id, symptom_id)
+    foreign_keys:
+      - disease_id -> diseases.disease_id
+      - symptom_id -> symptoms.symptom_id
+    join_keys:
+      - disease_id -> diseases.disease_id
+      - symptom_id -> symptoms.symptom_id
+    columns:
+      - name: disease_id
+        type: INT
+        nullable: true
+        description: Disease foreign key.
+      - name: symptom_id
+        type: INT
+        nullable: true
+        description: Symptom foreign key.
+    query_patterns:
+      - Disease to symptom mapping
+      - Symptom to likely diseases
+    notes:
+      - Always join to diseases and symptoms for human-readable outputs.
+
+  - name: disease_precautions
+    description: Precautions or recommendations linked to diseases.
+    grain: One row per precaution statement.
+    primary_key: precaution_id
+    foreign_keys:
+      - disease_id -> diseases.disease_id
+    join_keys:
+      - disease_id -> diseases.disease_id
+    common_filters:
+      - precaution (ILIKE)
+      - disease_id
+    columns:
+      - name: precaution_id
+        type: SERIAL
+        nullable: false
+        description: Surrogate key of precaution row.
+      - name: disease_id
+        type: INT
+        nullable: true
+        description: Disease foreign key.
+      - name: precaution
+        type: TEXT
+        nullable: false
+        description: Precaution text.
+    query_patterns:
+      - Retrieve precautions by disease name
+
+  - name: global_health_stats
+    description: Multi-country health metrics by disease and demographics.
+    grain: One row per country-year-disease-age_group-gender combination.
+    primary_key: stat_id
+    unique_constraints:
+      - (country, year, disease_name, age_group, gender)
+    common_filters:
+      - country (ILIKE)
+      - year
+      - disease_name (ILIKE)
+      - disease_category (ILIKE)
+      - age_group (ILIKE)
+      - gender (ILIKE)
+      - treatment_type (ILIKE)
+    columns:
+      - name: stat_id
+        type: SERIAL
+        nullable: false
+        description: Surrogate key of health stats row.
+      - name: country
+        type: VARCHAR(100)
+        nullable: false
+        description: Country name.
+      - name: year
+        type: INT
+        nullable: false
+        description: Observation year.
+      - name: disease_name
+        type: VARCHAR(255)
+        nullable: false
+        description: Disease label used in this dataset.
+      - name: disease_category
+        type: VARCHAR(100)
+        nullable: true
+        description: Disease category/group.
+      - name: prevalence_rate
+        type: DECIMAL(5,2)
+        nullable: true
+        description: Disease prevalence rate.
+      - name: incidence_rate
+        type: DECIMAL(5,2)
+        nullable: true
+        description: Disease incidence rate.
+      - name: mortality_rate
+        type: DECIMAL(5,2)
+        nullable: true
+        description: Disease mortality rate.
+      - name: age_group
+        type: VARCHAR(50)
+        nullable: true
+        description: Age segment label.
+      - name: gender
+        type: VARCHAR(20)
+        nullable: true
+        description: Sex/gender segment label.
+      - name: population_affected
+        type: INT
+        nullable: true
+        description: Absolute affected population count.
+      - name: healthcare_access_pct
+        type: DECIMAL(5,2)
+        nullable: true
+        description: Healthcare access percentage.
+      - name: doctors_per_1000
+        type: DECIMAL(5,2)
+        nullable: true
+        description: Doctors per 1000 inhabitants.
+      - name: hospital_beds_per_1000
+        type: DECIMAL(5,2)
+        nullable: true
+        description: Hospital beds per 1000 inhabitants.
+      - name: treatment_type
+        type: VARCHAR(100)
+        nullable: true
+        description: Treatment modality/category.
+      - name: average_treatment_cost_usd
+        type: DECIMAL(12,2)
+        nullable: true
+        description: Average treatment cost in USD.
+      - name: availability_vaccines_treatment
+        type: VARCHAR(10)
+        nullable: true
+        description: Vaccine/treatment availability status.
+      - name: recovery_rate
+        type: DECIMAL(5,2)
+        nullable: true
+        description: Recovery rate.
+      - name: dalys
+        type: INT
+        nullable: true
+        description: Disability-adjusted life years.
+      - name: improvement_5yr_pct
+        type: DECIMAL(5,2)
+        nullable: true
+        description: Improvement percentage over 5 years.
+      - name: per_capita_income_usd
+        type: DECIMAL(12,2)
+        nullable: true
+        description: Per-capita income in USD.
+      - name: education_index
+        type: DECIMAL(4,3)
+        nullable: true
+        description: Education index score.
+      - name: urbanization_rate_pct
+        type: DECIMAL(5,2)
+        nullable: true
+        description: Urbanization percentage.
+    value_examples:
+      country: Portugal, United States, Brazil
+      gender: Male, Female, Both
+      age_group: Children, Adults, Elderly
+    query_patterns:
+      - Country-level prevalence/incidence/mortality in a given year
+      - Trend over years for one disease and country
+      - Compare countries for same disease-year
+      - Segment by age_group or gender
+      - Correlate burden with healthcare access/capacity metrics
+    notes:
+      - Epidemiology questions usually use prevalence_rate, incidence_rate, mortality_rate.
+      - Economic questions usually use average_treatment_cost_usd and per_capita_income_usd.
+
+  - name: chronic_disease_indicators
+    description: Chronic disease indicator dataset with confidence intervals and stratification fields.
+    grain: One row per indicator observation by location, period, question, and stratification.
+    primary_key: indicator_id
+    common_filters:
+      - location_desc (ILIKE)
+      - location_abbr (ILIKE)
+      - datasource (ILIKE)
+      - topic (ILIKE)
+      - question (ILIKE)
+      - response (ILIKE)
+      - year_start
+      - year_end
+      - stratification_category_1 (ILIKE)
+      - stratification_1 (ILIKE)
+      - topic_id
+      - question_id
+    columns:
+      - name: indicator_id
+        type: SERIAL
+        nullable: false
+        description: Surrogate key of indicator row.
+      - name: year_start
+        type: INT
+        nullable: true
+        description: Start year of observation period.
+      - name: year_end
+        type: INT
+        nullable: true
+        description: End year of observation period.
+      - name: location_abbr
+        type: VARCHAR(10)
+        nullable: true
+        description: Location abbreviation code.
+      - name: location_desc
+        type: VARCHAR(255)
+        nullable: true
+        description: Full location description.
+      - name: datasource
+        type: VARCHAR(100)
+        nullable: true
+        description: Source system or survey name.
+      - name: topic
+        type: VARCHAR(255)
+        nullable: true
+        description: Broad health topic.
+      - name: question
+        type: TEXT
+        nullable: true
+        description: Indicator question text.
+      - name: response
+        type: TEXT
+        nullable: true
+        description: Response category/label.
+      - name: data_value_unit
+        type: VARCHAR(50)
+        nullable: true
+        description: Unit of measure.
+      - name: data_value_type
+        type: VARCHAR(100)
+        nullable: true
+        description: Value type (for example crude or age-adjusted).
+      - name: data_value
+        type: DECIMAL(18,2)
+        nullable: true
+        description: Main numeric value.
+      - name: low_confidence_limit
+        type: DECIMAL(18,2)
+        nullable: true
+        description: Lower confidence interval bound.
+      - name: high_confidence_limit
+        type: DECIMAL(18,2)
+        nullable: true
+        description: Upper confidence interval bound.
+      - name: stratification_category_1
+        type: VARCHAR(100)
+        nullable: true
+        description: Stratification category (for example age, sex, race).
+      - name: stratification_1
+        type: VARCHAR(100)
+        nullable: true
+        description: Stratification value.
+      - name: geolocation
+        type: VARCHAR(255)
+        nullable: true
+        description: Optional geolocation payload.
+      - name: location_id
+        type: VARCHAR(10)
+        nullable: true
+        description: Location identifier.
+      - name: topic_id
+        type: VARCHAR(50)
+        nullable: true
+        description: Topic identifier.
+      - name: question_id
+        type: VARCHAR(50)
+        nullable: true
+        description: Question identifier.
+      - name: stratification_id_1
+        type: VARCHAR(50)
+        nullable: true
+        description: Stratification identifier.
+    value_examples:
+      data_value_unit: %, per 100000
+      data_value_type: Crude prevalence, Age-adjusted prevalence
+    query_patterns:
+      - Retrieve indicator values by location and year range
+      - Compare stratification groups within same location/topic/question
+      - Report confidence intervals alongside data_value
+    notes:
+      - data_value is the primary metric; include confidence limits when available.
+
+  - name: brfss_responses
+    description: BRFSS-style respondent-level records with diagnosis, behavior, and anthropometrics.
+    grain: One row per respondent (sequence_no).
+    primary_key: brfss_id
+    unique_constraints:
+      - sequence_no
+    common_filters:
+      - state_code
+      - diagnosed_diabetes
+      - diagnosed_asthma
+      - asthma_now
+      - diagnosed_stroke
+      - diagnosed_heart_attack
+      - diagnosed_heart_dis
+      - diagnosed_copd
+      - diagnosed_depressive
+      - diagnosed_kidney_dis
+      - diagnosed_arthritis
+      - diagnosed_skin_cancer
+      - diagnosed_other_cancer
+      - high_blood_pressure
+      - high_cholesterol
+      - smoke_100
+      - alcohol_binge
+      - exercise_any
+      - general_health
+      - physical_health_days
+      - mental_health_days
+      - bmi
+    columns:
+      - name: brfss_id
+        type: SERIAL
+        nullable: false
+        description: Surrogate key.
+      - name: state_code
+        type: INT
+        nullable: true
+        description: State code of respondent.
+      - name: diagnosed_diabetes
+        type: INT
+        nullable: true
+        description: DIABETE4 coded answer for diabetes diagnosis.
+      - name: diagnosed_asthma
+        type: INT
+        nullable: true
+        description: ASTHMA3 coded answer for ever having asthma.
+      - name: asthma_now
+        type: INT
+        nullable: true
+        description: ASTHNOW coded answer for current asthma.
+      - name: diagnosed_stroke
+        type: INT
+        nullable: true
+        description: CVDSTRK3 coded answer for stroke diagnosis.
+      - name: diagnosed_heart_attack
+        type: INT
+        nullable: true
+        description: CVDINFR4 coded answer for heart attack diagnosis.
+      - name: diagnosed_heart_dis
+        type: INT
+        nullable: true
+        description: CVDCRHD4 coded answer for coronary heart disease.
+      - name: diagnosed_copd
+        type: INT
+        nullable: true
+        description: CHCCOPD3 coded answer for COPD/emphysema/chronic bronchitis.
+      - name: diagnosed_depressive
+        type: INT
+        nullable: true
+        description: ADDEPEV3 coded answer for depressive disorder.
+      - name: diagnosed_kidney_dis
+        type: INT
+        nullable: true
+        description: CHCKDNY2 coded answer for kidney disease.
+      - name: diagnosed_arthritis
+        type: INT
+        nullable: true
+        description: HAVARTH4 coded answer for arthritis/gout/lupus/rheumatism.
+      - name: diagnosed_skin_cancer
+        type: INT
+        nullable: true
+        description: CHCSCNC1 coded answer for skin cancer.
+      - name: diagnosed_other_cancer
+        type: INT
+        nullable: true
+        description: CHCOCNC1 coded answer for other cancer types.
+      - name: high_blood_pressure
+        type: INT
+        nullable: true
+        description: BPHIGH6 coded answer for high blood pressure.
+      - name: high_cholesterol
+        type: INT
+        nullable: true
+        description: TOLDHI3 coded answer for high cholesterol.
+      - name: smoke_100
+        type: INT
+        nullable: true
+        description: SMOKE100 coded answer for having smoked at least 100 cigarettes.
+      - name: alcohol_binge
+        type: INT
+        nullable: true
+        description: _RFBING6 coded answer for binge drinking indicator.
+      - name: exercise_any
+        type: INT
+        nullable: true
+        description: EXERANY2 coded answer for physical activity.
+      - name: general_health
+        type: INT
+        nullable: true
+        description: GENHLTH self-rated general health category.
+      - name: physical_health_days
+        type: INT
+        nullable: true
+        description: PHYSHLTH number of poor physical health days.
+      - name: mental_health_days
+        type: INT
+        nullable: true
+        description: MENTHLTH number of poor mental health days.
+      - name: weight_kg
+        type: DECIMAL(6,2)
+        nullable: true
+        description: WTKG3 respondent weight in kilograms.
+      - name: height_cm
+        type: INT
+        nullable: true
+        description: HTM4 respondent height in centimeters.
+      - name: bmi
+        type: DECIMAL(6,2)
+        nullable: true
+        description: _BMI5 body mass index.
+      - name: sequence_no
+        type: BIGINT
+        nullable: true
+        description: Unique respondent sequence number.
+    query_patterns:
+      - Count respondents meeting one or more risk criteria
+      - Estimate prevalence from coded diagnosis indicators
+      - Compare risk profiles by state_code
+      - Compute average bmi, physical_health_days, mental_health_days
+    notes:
+      - Diagnosis and behavior columns are coded integers; mapping of code meanings depends on BRFSS codebook.
+      - When no codebook filter is available, avoid over-interpreting exact code labels.
+
+  - name: country_dim
+    description: Country dimension used by immunization fact table.
+    grain: One row per ISO country code.
+    primary_key: id
+    unique_constraints:
+      - iso_code
+    join_keys:
+      - id -> immunization_fact.country_id
+      - iso_code
+      - country_name
+    common_filters:
+      - iso_code (ILIKE)
+      - country_name (ILIKE)
+    columns:
+      - name: id
+        type: SERIAL
+        nullable: false
+        description: Surrogate key.
+      - name: iso_code
+        type: VARCHAR(3)
+        nullable: false
+        description: ISO country code.
+      - name: country_name
+        type: TEXT
+        nullable: false
+        description: Human-readable country name.
+    query_patterns:
+      - Join to immunization_fact for country names
+
+  - name: vaccine_dim
+    description: Vaccine dimension used by immunization fact table.
+    grain: One row per vaccine code.
+    primary_key: id
+    unique_constraints:
+      - vaccine_code
+    join_keys:
+      - id -> immunization_fact.vaccine_id
+      - vaccine_code
+    common_filters:
+      - vaccine_code (ILIKE)
+    columns:
+      - name: id
+        type: SERIAL
+        nullable: false
+        description: Surrogate key.
+      - name: vaccine_code
+        type: TEXT
+        nullable: false
+        description: Vaccine short code.
+    value_examples:
+      vaccine_code: DTP3, MCV1, POL3
+    query_patterns:
+      - Join to immunization_fact for vaccine names/codes
+
+  - name: immunization_fact
+    description: Annual immunization metrics by country and vaccine.
+    grain: One row per country_id-vaccine_id-year.
+    primary_key: id
+    unique_constraints:
+      - (country_id, vaccine_id, year)
+    foreign_keys:
+      - country_id -> country_dim.id
+      - vaccine_id -> vaccine_dim.id
+    join_keys:
+      - country_id -> country_dim.id
+      - vaccine_id -> vaccine_dim.id
+    common_filters:
+      - year
+      - anomaly_flag
+      - country_id
+      - vaccine_id
+    columns:
+      - name: id
+        type: BIGSERIAL
+        nullable: false
+        description: Surrogate key.
+      - name: country_id
+        type: INT
+        nullable: true
+        description: Foreign key to country_dim.
+      - name: vaccine_id
+        type: INT
+        nullable: true
+        description: Foreign key to vaccine_dim.
+      - name: year
+        type: INT
+        nullable: false
+        description: Observation year.
+      - name: wuenic_coverage
+        type: NUMERIC(5,2)
+        nullable: true
+        description: WUENIC coverage percentage.
+      - name: administrative_coverage
+        type: NUMERIC(5,2)
+        nullable: true
+        description: Administrative coverage percentage.
+      - name: children_vaccinated
+        type: BIGINT
+        nullable: true
+        description: Number of children vaccinated.
+      - name: children_target
+        type: BIGINT
+        nullable: true
+        description: Target number of children.
+      - name: births_unpd
+        type: BIGINT
+        nullable: true
+        description: Births estimate from UNPD source.
+      - name: surviving_infants
+        type: BIGINT
+        nullable: true
+        description: Surviving infants estimate.
+      - name: calculated_coverage
+        type: NUMERIC(5,2)
+        nullable: true
+        description: Calculated coverage percentage.
+      - name: anomaly_flag
+        type: BOOLEAN
+        nullable: true
+        description: Flag indicating potential data anomaly.
+    query_patterns:
+      - Coverage trend for country and vaccine over time
+      - Cross-country comparison for same vaccine and year
+      - Identify anomalies in coverage records
+    notes:
+      - Usually join with country_dim and vaccine_dim to produce readable output.
+
+  - name: drugs_side_effects
+    description: Drug catalog with condition, side effects, safety labels, and user rating signals.
+    grain: One row per (drug_name, medical_condition).
+    primary_key: id
+    unique_constraints:
+      - (drug_name, medical_condition)
+    common_filters:
+      - drug_name (ILIKE)
+      - medical_condition (ILIKE)
+      - generic_name (ILIKE)
+      - brand_names (ILIKE)
+      - drug_classes (ILIKE)
+      - rx_otc (ILIKE)
+      - pregnancy_category (ILIKE)
+      - rating
+      - no_of_reviews
+    columns:
+      - name: id
+        type: SERIAL
+        nullable: false
+        description: Surrogate key.
+      - name: drug_name
+        type: TEXT
+        nullable: true
+        description: Primary drug name.
+      - name: medical_condition
+        type: TEXT
+        nullable: true
+        description: Condition associated with this drug record.
+      - name: side_effects
+        type: TEXT
+        nullable: true
+        description: Side effects text.
+      - name: generic_name
+        type: TEXT
+        nullable: true
+        description: Generic/non-brand name.
+      - name: drug_classes
+        type: TEXT
+        nullable: true
+        description: Pharmacological classes.
+      - name: brand_names
+        type: TEXT
+        nullable: true
+        description: Commercial brand names.
+      - name: activity
+        type: TEXT
+        nullable: true
+        description: Drug activity status/details.
+      - name: rx_otc
+        type: TEXT
+        nullable: true
+        description: Prescription or OTC status.
+      - name: pregnancy_category
+        type: TEXT
+        nullable: true
+        description: Pregnancy risk category.
+      - name: csa
+        type: TEXT
+        nullable: true
+        description: Controlled substances act schedule information.
+      - name: alcohol
+        type: TEXT
+        nullable: true
+        description: Alcohol interaction warning.
+      - name: related_drugs
+        type: TEXT
+        nullable: true
+        description: Related medications text.
+      - name: medical_condition_description
+        type: TEXT
+        nullable: true
+        description: Narrative description of the medical condition.
+      - name: rating
+        type: NUMERIC
+        nullable: true
+        description: User rating signal.
+      - name: no_of_reviews
+        type: INTEGER
+        nullable: true
+        description: Number of reviews supporting rating.
+      - name: drug_link
+        type: TEXT
+        nullable: true
+        description: URL to drug reference page.
+      - name: medical_condition_url
+        type: TEXT
+        nullable: true
+        description: URL to condition reference page.
+    value_examples:
+      rx_otc: Rx, OTC
+      pregnancy_category: A, B, C, D, X
+    query_patterns:
+      - Get side effects for a drug
+      - Find drugs for a condition
+      - Rank drugs by rating with minimum no_of_reviews
+      - Filter by pregnancy category or Rx/OTC
+    notes:
+      - side_effects and related_drugs are free text and may need parsing-like display.

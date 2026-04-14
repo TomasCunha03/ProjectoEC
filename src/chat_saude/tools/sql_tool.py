@@ -36,6 +36,19 @@ def load_prompt(yaml_path: str, key: str) -> str:
         return ""
 
 
+def load_sql_data_context(yaml_path: str) -> str:
+    """Load SQL data context as raw YAML text for direct prompt injection."""
+    try:
+        with open(yaml_path, "r", encoding="utf-8") as file:
+            return file.read().strip()
+    except FileNotFoundError:
+        logger.warning("SQL data context file not found: %s", yaml_path)
+        return ""
+    except Exception as exc:
+        logger.warning("Failed to read SQL data context file %s: %s", yaml_path, exc)
+        return ""
+
+
 def _is_safe_query(query: str) -> bool:
     query_upper = query.upper().strip()
 
@@ -115,7 +128,11 @@ def sql_query(user_question: str) -> str:
 
         base_dir = os.path.dirname(__file__)
         prompts_path = os.path.abspath(os.path.join(base_dir, "..", "..", "agents", "prompts.yaml"))
+        data_context_path = os.path.abspath(
+            os.path.join(base_dir, "..", "..", "agents", "sql_schema.yaml")
+        )
         gen_template = load_prompt(prompts_path, "sql_prompt")
+        data_context = load_sql_data_context(data_context_path)
 
         if not gen_template:
             msg = "Internal error: SQL generation prompt not found."
@@ -124,7 +141,11 @@ def sql_query(user_question: str) -> str:
             )
             return msg
 
-        prompt_sql = gen_template.format(schema=schema, user_question=user_question)
+        prompt_sql = gen_template.format(
+            schema=schema,
+            data_context=data_context or "No extra table-content metadata available.",
+            user_question=user_question,
+        )
 
         # 2. Gerar e extrair SQL
         raw_response = llm.invoke(prompt_sql)
