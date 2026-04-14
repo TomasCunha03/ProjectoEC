@@ -197,7 +197,7 @@ def check_domain(query: str):
         text_message = (
             "I am a specialized medical assistant. I can only answer questions related to health, "
             "medicine and wellness."
-            )
+        )
         return text_message
 
     # Case C: It's a medical question (let it pass to the system)
