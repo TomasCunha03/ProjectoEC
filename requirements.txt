@@ -12,6 +12,7 @@ openpyxl
 # Dados e APIs
 pandas
 requests
+plotly
 
 # Crawlers e extração
 selenium
