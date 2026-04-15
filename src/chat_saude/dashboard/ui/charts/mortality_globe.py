@@ -9,12 +9,17 @@ ORDER = 10
 
 
 def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int]) -> None:
-    st.markdown("**Orthographic Globe: Average mortality by country**")
     global_map_df = data.get("global_map", pd.DataFrame())
 
     if global_map_df.empty:
         st.info("No global data available for the orthographic map.")
         return
+
+    disease_label = "Selected disease"
+    if "disease_name" in global_map_df.columns and not global_map_df["disease_name"].dropna().empty:
+        disease_label = str(global_map_df["disease_name"].dropna().iloc[0])
+
+    st.markdown(f"**Orthographic Globe: Average mortality by country ({disease_label})**")
 
     global_map_df = global_map_df.copy()
     global_map_df["avg_mortality_rate"] = pd.to_numeric(
@@ -79,6 +84,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
     )
     st.plotly_chart(fig_globe, use_container_width=True, theme="streamlit")
     st.caption(
+        f"Disease in scope: {disease_label}. "
         "Darker color means higher average mortality. "
         "Hover to inspect recovery and affected population."
     )

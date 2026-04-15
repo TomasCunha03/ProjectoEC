@@ -50,6 +50,8 @@ def _discover_chart_renderers() -> dict[str, list[ChartRenderer]]:
 def render_dashboard_section(filters: DashboardFilters) -> None:
     st.subheader("📊 Health Dashboard")
 
+    disease_label = filters.global_disease_name or "Selected disease"
+
     try:
         data = get_dashboard_data(filters)
     except Exception as exc:
@@ -59,13 +61,14 @@ def render_dashboard_section(filters: DashboardFilters) -> None:
     summary = build_dashboard_summary(data)
 
     st.metric(
-        "Global average mortality",
+        f"Global average mortality ({disease_label})",
         f"{float(summary['avg_mortality_rate']):.2f}%",
         delta=(
             f"Average recovery: {float(summary['avg_recovery_rate']):.2f}% | "
             f"Countries: {int(summary['countries_count'])}"
         ),
     )
+    st.caption(f"KPI disease in scope: {disease_label}")
 
     renderers_by_slot = _discover_chart_renderers()
     main_renderers = renderers_by_slot.get("main", [])

@@ -22,6 +22,10 @@ def _build_global_where(filters: DashboardFilters) -> tuple[str, dict[str, Any]]
         clauses.append("country = :global_country")
         params["global_country"] = filters.global_country
 
+    if filters.global_disease_name:
+        clauses.append("disease_name = :global_disease_name")
+        params["global_disease_name"] = filters.global_disease_name
+
     if filters.global_disease_category:
         clauses.append("disease_category = :global_disease_category")
         params["global_disease_category"] = filters.global_disease_category
@@ -92,6 +96,7 @@ def global_country_mortality_query(filters: DashboardFilters) -> tuple[TextClaus
         f"""
         SELECT
             country,
+            MIN(disease_name) AS disease_name,
             AVG(mortality_rate) AS avg_mortality_rate,
             AVG(recovery_rate) AS avg_recovery_rate,
             SUM(population_affected) AS total_population_affected

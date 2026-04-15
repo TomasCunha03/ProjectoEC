@@ -64,6 +64,7 @@ def get_dashboard_filters_from_chat() -> DashboardFilters:
         "global_start_year",
         "global_end_year",
         "global_country",
+        "global_disease_name",
         "global_disease_category",
         "chronic_start_year",
         "chronic_end_year",
