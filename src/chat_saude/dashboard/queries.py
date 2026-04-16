@@ -237,3 +237,47 @@ def chronic_filter_options_query() -> TextClause:
         FROM chronic_disease_indicators
         """
     )
+
+
+def bcg_coverage_2023_query() -> tuple[TextClause, dict[str, Any]]:
+    """Query for BCG administrative coverage by country in 2023."""
+    statement = text(
+        """
+        SELECT
+            cd.country_name AS country,
+            imf.year,
+            imf.administrative_coverage
+        FROM immunization_fact imf
+        JOIN country_dim cd ON imf.country_id = cd.id
+        JOIN vaccine_dim vd ON imf.vaccine_id = vd.id
+        WHERE vd.vaccine_code = :vaccine_code
+          AND imf.year = :year
+          AND imf.administrative_coverage IS NOT NULL
+        ORDER BY imf.administrative_coverage DESC
+        """
+    )
+    params = {"vaccine_code": "BCG", "year": 2023}
+    return statement, params
+
+
+def bcg_trend_query() -> tuple[TextClause, dict[str, Any]]:
+    """Query for BCG coverage trend over years (average, min, max across countries)."""
+    statement = text(
+        """
+        SELECT
+            imf.year,
+            AVG(imf.administrative_coverage) AS avg_coverage,
+            MIN(imf.administrative_coverage) AS min_coverage,
+            MAX(imf.administrative_coverage) AS max_coverage,
+            COUNT(DISTINCT imf.country_id) AS countries_count
+        FROM immunization_fact imf
+        JOIN vaccine_dim vd ON imf.vaccine_id = vd.id
+        WHERE vd.vaccine_code = :vaccine_code
+          AND imf.administrative_coverage IS NOT NULL
+          AND imf.year IS NOT NULL
+        GROUP BY imf.year
+        ORDER BY imf.year ASC
+        """
+    )
+    params = {"vaccine_code": "BCG"}
+    return statement, params
