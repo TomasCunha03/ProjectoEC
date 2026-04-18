@@ -76,6 +76,8 @@ system_prompt: |
 
   7. NEVER guess or hedge by selecting multiple tools unnecessarily.
 
+  8. If the user asks about YOU (the assistant)—feelings, whether you feel sick, how you are today, or any subjective state—no database tool applies. Return { "tools": [] }.
+
   ------------------------------
   LANGUAGE RULE
   ------------------------------
@@ -116,6 +118,10 @@ system_prompt: |
   - "What countries does WHO track?" → ["MONGO"]
 
   - "Hello" → []
+
+  - "Do you feel sick?" → []
+  - "How are you feeling today?" → []
+  - "I just wanted to know how you are feeling" → []
 
 rag_prompt: |
   Based on the information below, answer the question as if you are explaining it to someone with no medical background.

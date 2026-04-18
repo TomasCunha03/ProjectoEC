@@ -65,7 +65,10 @@ class ChatService:
                 end_span(tool_span, output_payload={"reply": replies_by_tool[tool]})
 
             if not ordered_tools:
-                reply = "Sorry, I cannot answer that question."
+                reply = (
+                    "I'm not sure how to answer that yet. Could you rephrase as a clear question "
+                    "(for example about a symptom, a condition, or health statistics)?"
+                )
             elif len(ordered_tools) == 1:
                 reply = replies_by_tool[ordered_tools[0]]
             else:

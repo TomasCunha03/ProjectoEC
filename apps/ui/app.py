@@ -5,7 +5,7 @@ import streamlit as st
 from dotenv import load_dotenv
 from PIL import Image
 
-from chat_saude.infrastructure.database.db_connection import test_nosql, test_sql, test_vector
+from chat_saude.infrastructure.database.db_connection import iter_infrastructure_status
 
 load_dotenv()
 
@@ -43,26 +43,16 @@ def landing_page():
     # Expander com os testes de status
 
     with st.expander("⚙️ System status"):
-        st.header("Infrastructure status")
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            if test_sql():
-                st.success("SQL (PostgreSQL) - Connected")
+        st.subheader("Infrastructure status")
+        st.caption(
+            "Each component is probed from this app (same network as Docker Compose). "
+            "**Healthy** means the service responded as expected; **Unavailable** means it did not."
+        )
+        for label, healthy in iter_infrastructure_status():
+            if healthy:
+                st.success(f"**{label}** — Healthy")
             else:
-                st.error("SQL - Connection failed")
-
-        with col2:
-            if test_nosql():
-                st.success("NoSQL (MongoDB) - Connected")
-            else:
-                st.error("NoSQL - Connection failed")
-
-        with col3:
-            if test_vector():
-                st.success("Vector (Chroma) - Connected")
-            else:
-                st.warning("Vector - Offline or in setup")
+                st.error(f"**{label}** — Unavailable")
 
 
 # Página de Chat

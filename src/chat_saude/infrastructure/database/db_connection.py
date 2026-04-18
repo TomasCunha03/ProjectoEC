@@ -4,8 +4,10 @@ Uses chat_saude.config.settings with fallback to legacy env vars (SQL_*, MONGO_*
 """
 
 import os
+from typing import Callable
 
 import chromadb
+import requests
 import psycopg2
 from pymongo import MongoClient
 
@@ -87,6 +89,53 @@ def test_vector():
         return True
     except Exception:
         return False
+
+
+def _http_ok(url: str, timeout: float = 3.0) -> bool:
+    try:
+        r = requests.get(url, timeout=timeout)
+        return r.status_code < 500
+    except Exception:
+        return False
+
+
+def test_api() -> bool:
+    """FastAPI chat backend (/health)."""
+    host = os.getenv("API_HOST", "localhost")
+    port = os.getenv("API_PORT", "8500")
+    return _http_ok(f"http://{host}:{port}/health")
+
+
+def test_ollama() -> bool:
+    """Ollama HTTP server (daemon listening)."""
+    base = (os.getenv("OLLAMA_HOST") or "http://localhost:11434").rstrip("/")
+    return _http_ok(base + "/")
+
+
+def test_langfuse() -> bool:
+    """Langfuse web UI / API (observability)."""
+    base = (os.getenv("LANGFUSE_HOST") or "http://localhost:3000").rstrip("/")
+    return _http_ok(base + "/")
+
+
+# Order matches typical dependency chain (API first for the UI).
+INFRASTRUCTURE_CHECKS: list[tuple[str, Callable[[], bool]]] = [
+    ("Chat API (FastAPI)", test_api),
+    ("PostgreSQL", test_sql),
+    ("MongoDB", test_nosql),
+    ("Chroma (vector store)", test_vector),
+    ("Ollama (LLM)", test_ollama),
+    ("Langfuse (observability)", test_langfuse),
+]
+
+
+def iter_infrastructure_status():
+    """Yield (label, healthy: bool) for each component."""
+    for label, fn in INFRASTRUCTURE_CHECKS:
+        try:
+            yield label, bool(fn())
+        except Exception:
+            yield label, False
 
 
 # --- PostgreSQL raw connection (for ingestion scripts using cursor) ---
