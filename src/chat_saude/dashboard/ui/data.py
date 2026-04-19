@@ -20,6 +20,8 @@ def get_dashboard_data(filters: DashboardFilters) -> dict[str, pd.DataFrame]:
         "global_map": service.get_global_country_mortality(filters),
         "bcg_coverage_2023": service.get_bcg_coverage_2023(),
         "bcg_trend": service.get_bcg_trend(),
+        "risk_factor_disease": service.get_risk_factor_disease_correlation(),
+        "cost_effectiveness": service.get_cost_effectiveness(filters),
     }
 
 

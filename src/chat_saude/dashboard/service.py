@@ -78,3 +78,13 @@ class DashboardDataService:
             "locations": row["locations"] or [],
             "topics": row["topics"] or [],
         }
+
+    def get_risk_factor_disease_correlation(self) -> pd.DataFrame:
+        """Get risk factor vs disease diagnosis correlation from BRFSS data."""
+        statement, params = queries.risk_factor_disease_query()
+        return self._run(statement, params)
+
+    def get_cost_effectiveness(self, filters: DashboardFilters) -> pd.DataFrame:
+        """Get cost-effectiveness analysis: treatment cost vs recovery rate."""
+        statement, params = queries.cost_effectiveness_query(filters)
+        return self._run(statement, params)
