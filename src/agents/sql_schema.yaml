@@ -350,7 +350,7 @@ tables:
         nullable: true
         description: Stratification identifier.
     value_examples:
-      data_value_unit: %, per 100000
+      data_value_unit: "%, per 100000"
       data_value_type: Crude prevalence, Age-adjusted prevalence
     query_patterns:
       - Retrieve indicator values by location and year range
@@ -630,7 +630,12 @@ tables:
       - Usually join with country_dim and vaccine_dim to produce readable output.
 
   - name: drugs_side_effects
-    description: Drug catalog with condition, side effects, safety labels, and user rating signals.
+    description: >
+      Drug catalog with condition, side effects, safety labels, and user rating signals.
+      If the user names a specific drug or brand, filter on drug_name, generic_name, and/or
+      brand_names (typically with ILIKE), not only medical_condition. Use medical_condition
+      when the question is about a disease/condition and no specific drug is named, or as an
+      extra filter alongside the drug.
     grain: One row per (drug_name, medical_condition).
     primary_key: id
     unique_constraints:
@@ -722,9 +727,11 @@ tables:
       rx_otc: Rx, OTC
       pregnancy_category: A, B, C, D, X
     query_patterns:
-      - Get side effects for a drug
-      - Find drugs for a condition
+      - Side effects or profile for a named drug (match drug_name / generic_name / brand_names)
+      - Find drugs for a condition (medical_condition ILIKE when no drug named)
       - Rank drugs by rating with minimum no_of_reviews
       - Filter by pregnancy category or Rx/OTC
     notes:
+      - Do not answer a named-drug question using only medical_condition unless the user asked purely by condition.
+      - Text fields (drug_name, medical_condition, etc.) should be filtered with ILIKE, not exact '='.
       - side_effects and related_drugs are free text and may need parsing-like display.

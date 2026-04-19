@@ -1,5 +1,11 @@
+import concurrent.futures
 import os
 from contextvars import ContextVar
+from typing import Any
+
+from chat_saude.observability.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class _NoOpEntity:
@@ -20,6 +26,46 @@ _current_parent_span: ContextVar[object | None] = ContextVar(
 
 _client = None
 _noop = _NoOpEntity()
+
+
+def _langfuse_sync_timeout_seconds() -> float:
+    raw = os.getenv("LANGFUSE_SYNC_TIMEOUT_SECONDS", "8")
+    try:
+        return max(0.5, float(raw))
+    except ValueError:
+        return 8.0
+
+
+def _truncate_for_langfuse(obj: Any, max_chars: int = 16000) -> Any:
+    """Keep Langfuse payloads small so export HTTP calls cannot stall on huge bodies."""
+    if isinstance(obj, str):
+        if len(obj) <= max_chars:
+            return obj
+        return obj[:max_chars] + f"... [truncated, total {len(obj)} chars]"
+    if isinstance(obj, dict):
+        return {k: _truncate_for_langfuse(v, max_chars) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_truncate_for_langfuse(v, max_chars) for v in obj]
+    return obj
+
+
+def _run_langfuse_bounded(fn) -> None:
+    """Langfuse SDK flushes over HTTP synchronously; never block the API beyond a short cap."""
+    timeout = _langfuse_sync_timeout_seconds()
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(fn)
+    try:
+        future.result(timeout=timeout)
+    except concurrent.futures.TimeoutError:
+        logger.warning(
+            "Langfuse operation exceeded %.1fs (set LANGFUSE_SYNC_TIMEOUT_SECONDS); abandoning sync flush.",
+            timeout,
+        )
+    except Exception:
+        pass
+    finally:
+        # wait=False: do not block here if Langfuse HTTP is stuck (executor context manager would wait forever).
+        executor.shutdown(wait=False)
 
 
 def get_langfuse():
@@ -66,6 +112,12 @@ def start_trace(name: str, input_payload: object):
     return root_span
 
 
+def tracing_active() -> bool:
+    """True when a non-noop root trace was started (safe to add child spans, e.g. RAG substeps)."""
+    t = _current_trace.get()
+    return t is not None and not isinstance(t, _NoOpEntity)
+
+
 def start_span(name: str, input_payload: object = None):
     parent = _current_parent_span.get()
     trace = _current_trace.get()
@@ -87,21 +139,25 @@ def end_span(
     span, output_payload: object = None, level: str | None = None, status_message: str | None = None
 ):
     try:
+        if isinstance(span, _NoOpEntity):
+            return
+
         update_kwargs: dict = {}
         if output_payload is not None:
-            update_kwargs["output"] = output_payload
+            update_kwargs["output"] = _truncate_for_langfuse(output_payload)
         if level is not None:
             update_kwargs["level"] = level
         if status_message is not None:
             update_kwargs["status_message"] = status_message
 
-        # update() then end() is the v4 lifecycle for manually created observations.
-        if update_kwargs:
-            span.update(**update_kwargs)
-        else:
-            span.update()
+        def _finish() -> None:
+            if update_kwargs:
+                span.update(**update_kwargs)
+            else:
+                span.update()
+            span.end()
 
-        span.end()
+        _run_langfuse_bounded(_finish)
     except Exception:
         pass
     finally:
@@ -110,12 +166,22 @@ def end_span(
 
 def finalize_trace(output_payload: object = None):
     trace = _current_trace.get()
-    try:
-        if output_payload is not None:
-            trace.update(output=output_payload)
-        trace.end()
-    except Exception:
-        pass
-    finally:
-        _current_trace.set(None)
-        _current_parent_span.set(None)
+    _current_trace.set(None)
+    _current_parent_span.set(None)
+
+    if trace is None or isinstance(trace, _NoOpEntity):
+        return
+
+    payload = _truncate_for_langfuse(output_payload) if output_payload is not None else None
+
+    def _finish() -> None:
+        try:
+            if payload is not None:
+                trace.update(output=payload)
+            else:
+                trace.update()
+            trace.end()
+        except Exception:
+            pass
+
+    _run_langfuse_bounded(_finish)

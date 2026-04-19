@@ -1,8 +1,16 @@
 import json
 import os
+import sys
 
 import chromadb
 from sentence_transformers import SentenceTransformer
+
+# Allow `python src/.../chromadb_ingest.py` and Docker `PYTHONPATH=/app/src`
+_REPO_SRC = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+if _REPO_SRC not in sys.path:
+    sys.path.insert(0, _REPO_SRC)
+
+from chat_saude.config.settings import settings
 
 # Files
 DATA_DIR = "/app/data"
@@ -24,10 +32,8 @@ def chunk_text(text, size=800, overlap=200):
 COLLECTION_NAME = "pmc_medicine_preventive"
 embbeding_model = SentenceTransformer("BAAI/bge-base-en-v1.5")
 
-# Connection to ChromaDB
-client = chromadb.HttpClient(
-    host=os.getenv("VECTOR_HOST", "db_vector"), port=int(os.getenv("VECTOR_PORT", "8002"))
-)
+# Connection to ChromaDB (same host/port as RAG runtime: settings / VECTOR_DB_*)
+client = chromadb.HttpClient(host=settings.VECTOR_DB_HOST, port=settings.VECTOR_DB_PORT)
 print(client.list_collections())  # List collections
 
 if COLLECTION_NAME in [c.name for c in client.list_collections()]:

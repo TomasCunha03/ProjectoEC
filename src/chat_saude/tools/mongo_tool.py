@@ -91,53 +91,92 @@ def _search_disease_info(db, keyword: str) -> dict | None:
     )
 
 
-def _build_context(action: str, plan: dict, db) -> str:
+def _extract_condition_phrase(q: str) -> str | None:
+    """Pull the condition name from 'what is X', 'tell me about X', etc."""
+    q = q.strip()
+    patterns = (
+        r"\bwhat\s+is\s+(.+?)\s*\??\s*$",
+        r"\btell\s+me\s+about\s+(.+?)\s*\??\s*$",
+        r"\bexplain\s+(.+?)\s*\??\s*$",
+        r"\boverview\s+of\s+(.+?)\s*\??\s*$",
+    )
+    for pat in patterns:
+        m = re.search(pat, q, re.I | re.DOTALL)
+        if m:
+            phrase = m.group(1).strip()
+            phrase = re.sub(r"^(the|a|an)\s+", "", phrase, flags=re.I)
+            if len(phrase) >= 2:
+                return phrase[:120]
+    return None
+
+
+def _build_context(action: str, plan: dict, db) -> tuple[str, dict]:
+    """Return LLM-facing context text plus compact stats for observability (Langfuse)."""
+    stats: dict = {"mongo_action": action, "plan": plan}
+
     if action == "search_indicators":
         keyword = plan.get("keyword", "")
         results = _search_indicators(db, keyword)
+        stats["rows_returned"] = len(results)
+        stats["preview_rows"] = [
+            {"code": r.get("IndicatorCode"), "name": r.get("IndicatorName")} for r in results[:10]
+        ]
         if not results:
-            return f"No WHO indicators found for '{keyword}'."
+            return f"No WHO indicators found for '{keyword}'.", stats
         lines = [f"WHO indicators related to '{keyword}' ({len(results)} found):"]
         for r in results:
             lines.append(f"  - [{r.get('IndicatorCode', 'N/A')}] {r.get('IndicatorName', 'N/A')}")
-        return "\n".join(lines)
+        return "\n".join(lines), stats
 
-    elif action == "get_dimension_values":
+    if action == "get_dimension_values":
         dim_code = plan.get("dimension_code", "").upper()
         results = _get_dimension_values(db, dim_code)
+        stats["dimension_code"] = dim_code
+        stats["rows_returned"] = len(results)
+        stats["preview_rows"] = [{"code": r.get("Code"), "title": r.get("Title")} for r in results[:15]]
         if not results:
-            return f"No values found for dimension '{dim_code}'."
+            return f"No values found for dimension '{dim_code}'.", stats
         lines = [f"Available values for dimension '{dim_code}' ({len(results)} shown):"]
         for r in results:
             lines.append(f"  - [{r.get('Code', 'N/A')}] {r.get('Title', 'N/A')}")
-        return "\n".join(lines)
+        return "\n".join(lines), stats
 
-    elif action == "list_collections":
+    if action == "list_collections":
         collections = _list_collections(db)
+        stats["collection_count"] = len(collections)
+        stats["collection_names_sample"] = collections[:25]
         lines = [f"Available MongoDB collections ({len(collections)} total):"]
         for c in collections:
             lines.append(f"  - {c}")
-        return "\n".join(lines)
+        return "\n".join(lines), stats
 
-    elif action == "search_disease_info":
+    if action == "search_disease_info":
         keyword = plan.get("keyword", "")
         result = _search_disease_info(db, keyword)
+        stats["keyword"] = keyword
+        stats["matched"] = bool(result)
         if not result:
-            return f"No MedlinePlus information found for '{keyword}'."
+            return (
+                "No matching disease summary was returned for this search keyword "
+                "(internal note for model: do not mention databases or collection names to the user).",
+                stats,
+            )
         # Remove HTML tags from the summary
         summary = re.sub(r"<[^>]+>", " ", result.get("full_summary", ""))
         summary = re.sub(r"\s+", " ", summary).strip()
+        title = result.get("title") or result.get("disease_name") or keyword
+        stats["title"] = title
+        stats["summary_chars"] = len(summary)
+        stats["source_url"] = result.get("url")
         lines = [
-            f"**{result.get('title', result.get('disease_name', keyword))}**"
-            " (Source: MedlinePlus/NIH)",
+            f"**{title}**",
             "",
             summary,
         ]
-        if result.get("url"):
-            lines.append(f"\nMore information: {result['url']}")
-        return "\n".join(lines)
+        return "\n".join(lines), stats
 
-    return "Action not recognized."
+    stats["error"] = "unknown_action"
+    return "Action not recognized.", stats
 
 
 # Patterns to detect questions about dimensions (countries, age groups, etc.)
@@ -190,7 +229,9 @@ _DISEASE_INFO_PATTERN = re.compile(
     re.I,
 )
 
-_KNOWN_DISEASES = [
+# Longer phrases first — e.g. "rheumatoid arthritis" before "arthritis".
+_KNOWN_DISEASES = sorted(
+    [
     "acne",
     "adhd",
     "aids",
@@ -240,7 +281,10 @@ _KNOWN_DISEASES = [
     "swine flu",
     "uti",
     "weight loss",
-]
+    ],
+    key=len,
+    reverse=True,
+)
 
 
 def _plan_query(user_question: str) -> tuple[str, dict]:
@@ -251,6 +295,11 @@ def _plan_query(user_question: str) -> tuple[str, dict]:
         return "list_collections", {}
 
     if _DISEASE_INFO_PATTERN.search(q):
+        phrase = _extract_condition_phrase(user_question)
+        if phrase and not re.search(
+            r"\b(indicator|prevalence\s+in|rate\s+in|statistics|dimension)\b", phrase, re.I
+        ):
+            return "search_disease_info", {"keyword": phrase}
         for disease in _KNOWN_DISEASES:
             if disease in q:
                 return "search_disease_info", {"keyword": disease}
@@ -283,22 +332,29 @@ def mongo_query(user_question: str) -> str:
         catalog_context = _load_catalog_text()
         action, plan = _plan_query(user_question)
         logger.info("Mongo tool plan: action=%s plan=%s", action, plan)
-        data_context = _build_context(action, plan, db)
+        data_context, retrieval_stats = _build_context(action, plan, db)
 
         context_parts = []
-        if catalog_context:
+        # Disease-summary lookup does not need collection catalog (avoids leaking names); WHO/dimension flows keep it.
+        if catalog_context and action != "search_disease_info":
             context_parts.append(catalog_context)
         context_parts.append(data_context)
         context = "\n\n".join(context_parts)
 
         client = ollama.Client(host=OLLAMA_HOST)
         prompt = (
-            "Based on the data below from the health MongoDB database, answer "
-            "in English clearly and helpfully.\n\n"
-            f"Data:\n{context}\n\n"
+            "You are DrHouseGPT (medical education only). Answer in clear, simple English.\n\n"
+            "USER-FACING RULES (critical):\n"
+            "- Never mention MongoDB, SQL, databases, collections, collection names, fields, or internal tools.\n"
+            "- Never tell the user that information was missing from a named collection or datastore.\n"
+            "- If the data below is empty or says no matching summary, say briefly that you don't have a detailed "
+            "fact sheet on that exact topic here and suggest discussing concerns with a clinician for personal advice. "
+            "Do not blame a specific database.\n"
+            "- Do not include URLs, links, or 'further reading' in your answer to the user.\n\n"
+            "Material for your reasoning only (do not describe this structure to the user):\n"
+            f"{context}\n\n"
             f"Question: {user_question}\n\n"
-            "Respond concisely and informatively, presenting "
-            "the retrieved data in an organized way."
+            "Answer helpfully using only what is supported above. If unsupported, stay general and safe."
         )
 
         t0 = time.perf_counter()
@@ -311,7 +367,9 @@ def mongo_query(user_question: str) -> str:
             output_payload={
                 "action": action,
                 "plan": plan,
-                "context_preview": context[:1000],
+                "retrieval": retrieval_stats,
+                "context_chars": len(context),
+                "context_preview": context[:1500],
                 "response": final_response,
             },
         )

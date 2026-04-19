@@ -1,3 +1,10 @@
+"""
+Standalone tool selection via LLM (used by CLI/scripts).
+
+The main API chat path uses ``conversation_router.route_conversation`` instead, which merges
+routing + tool choice in one structured call.
+"""
+
 import json
 import os
 import re

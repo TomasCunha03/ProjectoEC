@@ -1,5 +1,8 @@
 version: 1
-summary: Lightweight MongoDB catalog for WHO GHO metadata and MedlinePlus disease summaries.
+summary: >
+  Lightweight MongoDB catalog for WHO GHO metadata and MedlinePlus-style disease summaries.
+  Broader preventive-medicine articles may live in the separate literature index consulted by RAG,
+  not in these collections. End-user responses must never name MongoDB or collection identifiers.
 
 global_rules:
   - Use collection names and field names exactly as stored.
