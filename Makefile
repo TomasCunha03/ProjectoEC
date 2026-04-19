@@ -1,14 +1,14 @@
 up:
-	docker-compose up --build
+	docker compose up --build
 
 down:
-	docker-compose down
+	docker compose down
 
 logs:
 	docker compose logs -f
 
 ingest:
-	docker-compose run app python scripts/run_ingestion.py
+	docker compose run app python scripts/run_ingestion.py
 
 list-llms:
 	docker compose exec ollama ollama list
