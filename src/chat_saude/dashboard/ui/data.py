@@ -18,6 +18,9 @@ def get_dashboard_data(filters: DashboardFilters) -> dict[str, pd.DataFrame]:
     return {
         "global_kpis": service.get_global_kpis(filters),
         "global_map": service.get_global_country_mortality(filters),
+        "top_conditions_by_drugs": service.get_top_conditions_by_drugs(),
+        "avg_rating_by_condition": service.get_avg_rating_by_condition(),
+        "pregnancy_category": service.get_pregnancy_category(),
     }
 
 

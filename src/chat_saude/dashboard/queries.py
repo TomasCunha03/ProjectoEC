@@ -237,3 +237,59 @@ def chronic_filter_options_query() -> TextClause:
         FROM chronic_disease_indicators
         """
     )
+
+
+def top_conditions_by_drugs_query() -> tuple[TextClause, dict[str, Any]]:
+    """Top 10 medical conditions by number of drugs, with average drug rating."""
+    statement = text(
+        """
+        SELECT
+            medical_condition,
+            COUNT(*) AS drug_count,
+            AVG(rating) AS avg_rating
+        FROM drugs_side_effects
+        WHERE medical_condition IS NOT NULL
+        GROUP BY medical_condition
+        ORDER BY drug_count DESC
+        LIMIT 10
+        """
+    )
+    return statement, {}
+
+
+def avg_rating_by_condition_query() -> tuple[TextClause, dict[str, Any]]:
+    """Top 10 medical conditions by average drug rating (min 5 drugs)."""
+    statement = text(
+        """
+        SELECT
+            medical_condition,
+            AVG(rating) AS avg_rating,
+            COUNT(*) AS drug_count
+        FROM drugs_side_effects
+        WHERE medical_condition IS NOT NULL
+          AND rating IS NOT NULL
+        GROUP BY medical_condition
+        HAVING COUNT(*) >= 5
+        ORDER BY avg_rating DESC
+        LIMIT 10
+        """
+    )
+    return statement, {}
+
+
+def pregnancy_category_query() -> tuple[TextClause, dict[str, Any]]:
+    """Distribution of drugs by FDA pregnancy safety category."""
+    statement = text(
+        """
+        SELECT
+            pregnancy_category,
+            COUNT(*) AS drug_count
+        FROM drugs_side_effects
+        WHERE pregnancy_category IS NOT NULL
+          AND pregnancy_category != ''
+          AND pregnancy_category != 'N'
+        GROUP BY pregnancy_category
+        ORDER BY pregnancy_category ASC
+        """
+    )
+    return statement, {}
