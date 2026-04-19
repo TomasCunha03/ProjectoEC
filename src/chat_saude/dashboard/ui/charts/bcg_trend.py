@@ -12,28 +12,38 @@ ORDER = 30
 def get_test_bcg_trend():
     """Get test BCG trend data for development/testing."""
     countries = [
-        "Afghanistan", "Albania", "Algeria", "Angola", "Argentina",
-        "Australia", "Austria", "Azerbaijan", "Bahamas", "Bangladesh",
+        "Afghanistan",
+        "Albania",
+        "Algeria",
+        "Angola",
+        "Argentina",
+        "Australia",
+        "Austria",
+        "Azerbaijan",
+        "Bahamas",
+        "Bangladesh",
     ]
-    
+
     data = []
     for year in range(2018, 2024):
         for country in countries:
             # Generate coverage with increasing trend
             coverage = 50 + (hash(country) % 35) + (year - 2018) * 2.5
             coverage = min(100, max(20, coverage))  # Between 20% and 100%
-            data.append({
-                "year": year,
-                "country": country,
-                "administrative_coverage": coverage,
-            })
-    
+            data.append(
+                {
+                    "year": year,
+                    "country": country,
+                    "administrative_coverage": coverage,
+                }
+            )
+
     df = pd.DataFrame(data)
     # Aggregate by year (calculate min, max, avg)
-    trend = df.groupby("year").agg({
-        "administrative_coverage": ["mean", "min", "max"]
-    }).reset_index()
-    
+    trend = (
+        df.groupby("year").agg({"administrative_coverage": ["mean", "min", "max"]}).reset_index()
+    )
+
     trend.columns = ["year", "avg_coverage", "min_coverage", "max_coverage"]
     return trend
 
@@ -41,60 +51,54 @@ def get_test_bcg_trend():
 def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int]) -> None:
     """
     Renders a line chart showing BCG administrative coverage trend over years.
-    
+
     Displays the evolution of average BCG coverage across all countries by year,
     with confidence band showing min/max coverage ranges.
     """
     bcg_trend_df = data.get("bcg_trend", pd.DataFrame())
-    
+
     # If empty, use test data
     if bcg_trend_df.empty:
-        st.info("ℹ️ Using test data (database is empty). Charts will be updated with real data after ingestion.")
+        st.info(
+            "ℹ️ Using test data (database is empty). "
+            "Charts will be updated with real data after ingestion."
+        )
         bcg_trend_df = get_test_bcg_trend()
-    
+
     if bcg_trend_df.empty:
         st.info("No BCG trend data available.")
         return
-    
+
     st.markdown("**BCG Administrative Coverage Trend**")
-    
+
     # Prepare data
     bcg_trend_df = bcg_trend_df.copy()
     bcg_trend_df["year"] = pd.to_numeric(bcg_trend_df["year"], errors="coerce")
-    bcg_trend_df["avg_coverage"] = pd.to_numeric(
-        bcg_trend_df["avg_coverage"], errors="coerce"
-    )
-    bcg_trend_df["min_coverage"] = pd.to_numeric(
-        bcg_trend_df["min_coverage"], errors="coerce"
-    )
-    bcg_trend_df["max_coverage"] = pd.to_numeric(
-        bcg_trend_df["max_coverage"], errors="coerce"
-    )
-    
+    bcg_trend_df["avg_coverage"] = pd.to_numeric(bcg_trend_df["avg_coverage"], errors="coerce")
+    bcg_trend_df["min_coverage"] = pd.to_numeric(bcg_trend_df["min_coverage"], errors="coerce")
+    bcg_trend_df["max_coverage"] = pd.to_numeric(bcg_trend_df["max_coverage"], errors="coerce")
+
     # Remove null values
     bcg_trend_df = bcg_trend_df.dropna(subset=["year", "avg_coverage"])
-    
+
     if bcg_trend_df.empty:
         st.warning("No valid BCG trend data.")
         return
-    
+
     # Sort by year
     bcg_trend_df = bcg_trend_df.sort_values("year")
-    
+
     # Create line chart with confidence band
     fig = px.line(
         bcg_trend_df,
         x="year",
         y="avg_coverage",
         markers=True,
-        labels={
-            "year": "Year",
-            "avg_coverage": "Average Coverage (%)"
-        },
+        labels={"year": "Year", "avg_coverage": "Average Coverage (%)"},
         title=None,
         color_discrete_sequence=["#3498db"],
     )
-    
+
     # Add min/max band
     fig.add_scatter(
         x=bcg_trend_df["year"],
@@ -106,7 +110,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         showlegend=False,
         hoverinfo="skip",
     )
-    
+
     fig.add_scatter(
         x=bcg_trend_df["year"],
         y=bcg_trend_df["min_coverage"],
@@ -118,7 +122,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         showlegend=True,
         hoverinfo="skip",
     )
-    
+
     # Update layout
     fig.update_layout(
         height=400,
@@ -143,7 +147,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         yaxis_tickfont=dict(color="#e6e6e6"),
         hovermode="x unified",
     )
-    
+
     # Update line styling
     fig.update_traces(
         selector=dict(mode="lines+markers"),
@@ -151,20 +155,21 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         marker=dict(size=8, color="#3498db", symbol="circle"),
         hovertemplate="<b>Year %{x}</b><br>Average Coverage: %{y:.2f}%<extra></extra>",
     )
-    
+
     st.plotly_chart(fig, use_container_width=True, theme="streamlit")
-    
+
     # Statistics
     latest_year = bcg_trend_df[bcg_trend_df["year"] == bcg_trend_df["year"].max()].iloc[0]
     earliest_year = bcg_trend_df[bcg_trend_df["year"] == bcg_trend_df["year"].min()].iloc[0]
-    
+
     coverage_change = latest_year["avg_coverage"] - earliest_year["avg_coverage"]
     year_range = int(latest_year["year"] - earliest_year["year"])
-    
+
     change_indicator = "📈" if coverage_change >= 0 else "📉"
-    
+
     st.caption(
-        f"Years analyzed: {int(earliest_year['year'])}-{int(latest_year['year'])} ({year_range} years) | "
+        f"Years analyzed: {int(earliest_year['year'])}-{int(latest_year['year'])}"
+        f" ({year_range} years) | "
         f"Average coverage: {bcg_trend_df['avg_coverage'].mean():.1f}% | "
         f"{change_indicator} Change: {coverage_change:+.1f}pp"
     )

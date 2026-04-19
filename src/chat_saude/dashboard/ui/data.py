@@ -22,6 +22,9 @@ def get_dashboard_data(filters: DashboardFilters) -> dict[str, pd.DataFrame]:
         "bcg_trend": service.get_bcg_trend(),
         "risk_factor_disease": service.get_risk_factor_disease_correlation(),
         "cost_effectiveness": service.get_cost_effectiveness(filters),
+        "top_conditions_by_drugs": service.get_top_conditions_by_drugs(),
+        "avg_rating_by_condition": service.get_avg_rating_by_condition(),
+        "pregnancy_category": service.get_pregnancy_category(),
     }
 
 

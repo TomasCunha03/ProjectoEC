@@ -296,7 +296,7 @@ def risk_factor_disease_query() -> tuple[TextClause, dict[str, Any]]:
             SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END) AS diabetes_cases,
             SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END) AS asthma_cases,
             SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END) AS heart_attack_cases,
-            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS coronary_heart_disease_cases,
+            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS chd_cases,
             SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END) AS stroke_cases,
             SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END) AS copd_cases,
             SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END) AS depressive_disorder_cases,
@@ -317,7 +317,7 @@ def risk_factor_disease_query() -> tuple[TextClause, dict[str, Any]]:
             SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END) AS diabetes_cases,
             SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END) AS asthma_cases,
             SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END) AS heart_attack_cases,
-            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS coronary_heart_disease_cases,
+            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS chd_cases,
             SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END) AS stroke_cases,
             SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END) AS copd_cases,
             SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END) AS depressive_disorder_cases,
@@ -333,12 +333,12 @@ def risk_factor_disease_query() -> tuple[TextClause, dict[str, Any]]:
         UNION ALL
         
         SELECT
-            CASE WHEN high_cholesterol = 1 THEN 'High Cholesterol' ELSE 'Normal Cholesterol' END AS risk_factor,
+            CASE WHEN high_cholesterol = 1 THEN 'High Chol' ELSE 'Normal Chol' END AS risk_factor,
             'Cholesterol' AS risk_category,
             SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END) AS diabetes_cases,
             SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END) AS asthma_cases,
             SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END) AS heart_attack_cases,
-            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS coronary_heart_disease_cases,
+            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS chd_cases,
             SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END) AS stroke_cases,
             SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END) AS copd_cases,
             SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END) AS depressive_disorder_cases,
@@ -359,7 +359,7 @@ def risk_factor_disease_query() -> tuple[TextClause, dict[str, Any]]:
             SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END) AS diabetes_cases,
             SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END) AS asthma_cases,
             SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END) AS heart_attack_cases,
-            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS coronary_heart_disease_cases,
+            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS chd_cases,
             SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END) AS stroke_cases,
             SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END) AS copd_cases,
             SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END) AS depressive_disorder_cases,
@@ -380,7 +380,7 @@ def risk_factor_disease_query() -> tuple[TextClause, dict[str, Any]]:
             SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END) AS diabetes_cases,
             SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END) AS asthma_cases,
             SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END) AS heart_attack_cases,
-            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS coronary_heart_disease_cases,
+            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS chd_cases,
             SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END) AS stroke_cases,
             SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END) AS copd_cases,
             SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END) AS depressive_disorder_cases,
@@ -406,7 +406,7 @@ def risk_factor_disease_query() -> tuple[TextClause, dict[str, Any]]:
             SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END) AS diabetes_cases,
             SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END) AS asthma_cases,
             SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END) AS heart_attack_cases,
-            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS coronary_heart_disease_cases,
+            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS chd_cases,
             SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END) AS stroke_cases,
             SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END) AS copd_cases,
             SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END) AS depressive_disorder_cases,
@@ -440,7 +440,7 @@ def risk_factor_disease_query() -> tuple[TextClause, dict[str, Any]]:
             SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END) AS diabetes_cases,
             SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END) AS asthma_cases,
             SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END) AS heart_attack_cases,
-            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS coronary_heart_disease_cases,
+            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS chd_cases,
             SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END) AS stroke_cases,
             SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END) AS copd_cases,
             SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END) AS depressive_disorder_cases,
@@ -471,7 +471,8 @@ def cost_effectiveness_query(filters: DashboardFilters) -> tuple[TextClause, dic
             ROUND(AVG(average_treatment_cost_usd)::numeric, 2) AS avg_cost_usd,
             ROUND(AVG(recovery_rate)::numeric, 2) AS avg_recovery_rate,
             COUNT(*) AS data_points,
-            ROUND((AVG(recovery_rate) / NULLIF(AVG(average_treatment_cost_usd), 0) * 1000)::numeric, 4) AS recovery_per_1k_usd
+            ROUND((AVG(recovery_rate) / NULLIF(AVG(average_treatment_cost_usd), 0)
+                * 1000)::numeric, 4) AS recovery_per_1k_usd
         FROM global_health_stats
         WHERE {where_clause}
           AND average_treatment_cost_usd IS NOT NULL
@@ -484,3 +485,59 @@ def cost_effectiveness_query(filters: DashboardFilters) -> tuple[TextClause, dic
         """
     )
     return statement, params
+
+
+def top_conditions_by_drugs_query() -> tuple[TextClause, dict[str, Any]]:
+    """Top 10 medical conditions by number of drugs, with average drug rating."""
+    statement = text(
+        """
+        SELECT
+            medical_condition,
+            COUNT(*) AS drug_count,
+            AVG(rating) AS avg_rating
+        FROM drugs_side_effects
+        WHERE medical_condition IS NOT NULL
+        GROUP BY medical_condition
+        ORDER BY drug_count DESC
+        LIMIT 10
+        """
+    )
+    return statement, {}
+
+
+def avg_rating_by_condition_query() -> tuple[TextClause, dict[str, Any]]:
+    """Top 10 medical conditions by average drug rating (min 5 drugs)."""
+    statement = text(
+        """
+        SELECT
+            medical_condition,
+            AVG(rating) AS avg_rating,
+            COUNT(*) AS drug_count
+        FROM drugs_side_effects
+        WHERE medical_condition IS NOT NULL
+          AND rating IS NOT NULL
+        GROUP BY medical_condition
+        HAVING COUNT(*) >= 5
+        ORDER BY avg_rating DESC
+        LIMIT 10
+        """
+    )
+    return statement, {}
+
+
+def pregnancy_category_query() -> tuple[TextClause, dict[str, Any]]:
+    """Distribution of drugs by FDA pregnancy safety category."""
+    statement = text(
+        """
+        SELECT
+            pregnancy_category,
+            COUNT(*) AS drug_count
+        FROM drugs_side_effects
+        WHERE pregnancy_category IS NOT NULL
+          AND pregnancy_category != ''
+          AND pregnancy_category != 'N'
+        GROUP BY pregnancy_category
+        ORDER BY pregnancy_category ASC
+        """
+    )
+    return statement, {}

@@ -88,3 +88,15 @@ class DashboardDataService:
         """Get cost-effectiveness analysis: treatment cost vs recovery rate."""
         statement, params = queries.cost_effectiveness_query(filters)
         return self._run(statement, params)
+
+    def get_top_conditions_by_drugs(self) -> pd.DataFrame:
+        statement, params = queries.top_conditions_by_drugs_query()
+        return self._run(statement, params)
+
+    def get_avg_rating_by_condition(self) -> pd.DataFrame:
+        statement, params = queries.avg_rating_by_condition_query()
+        return self._run(statement, params)
+
+    def get_pregnancy_category(self) -> pd.DataFrame:
+        statement, params = queries.pregnancy_category_query()
+        return self._run(statement, params)
