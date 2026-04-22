@@ -73,20 +73,25 @@ def ingest_wuenic(file_path):
         # -------------------------
         # 3. OBTER IDS
         # -------------------------
-        cur.execute("SELECT id, iso_code FROM country_dim")
+        cur.execute("SELECT iso_code, id FROM country_dim")
         country_map = dict(cur.fetchall())
 
-        cur.execute("SELECT id, vaccine_code FROM vaccine_dim")
+        cur.execute("SELECT vaccine_code, id FROM vaccine_dim")
         vaccine_map = dict(cur.fetchall())
 
         # -------------------------
         # 4. FACT TABLE
         # -------------------------
         fact_data = []
+        skipped_rows = 0
 
         for _, row in df.iterrows():
             country_id = country_map.get(row["iso_code"])
             vaccine_id = vaccine_map.get(row["vaccine"])
+
+            if country_id is None or vaccine_id is None:
+                skipped_rows += 1
+                continue
 
             fact_data.append(
                 (
@@ -128,6 +133,8 @@ def ingest_wuenic(file_path):
 
         conn.commit()
         print(f"Sucesso! {len(fact_data)} registos inseridos na immunization_fact.")
+        if skipped_rows:
+            print(f"Aviso: {skipped_rows} registos ignorados por falta de mapeamento em dimensões.")
 
     except Exception as e:
         conn.rollback()

@@ -8,58 +8,6 @@ SLOT = "main"
 ORDER = 20
 
 
-@st.cache_data(ttl=300)
-def get_test_bcg_data():
-    """Get test BCG data for development/testing."""
-    countries = [
-        "Afghanistan",
-        "Albania",
-        "Algeria",
-        "Angola",
-        "Argentina",
-        "Australia",
-        "Austria",
-        "Azerbaijan",
-        "Bahamas",
-        "Bangladesh",
-        "Barbados",
-        "Belarus",
-        "Belgium",
-        "Belize",
-        "Benin",
-        "Bhutan",
-        "Bolivia",
-        "Bosnia and Herzegovina",
-        "Botswana",
-        "Brazil",
-        "Brunei Darussalam",
-        "Bulgaria",
-        "Burkina Faso",
-        "Burundi",
-        "Cambodia",
-        "Cameroon",
-        "Canada",
-        "Cape Verde",
-        "Central African Republic",
-        "Chad",
-    ]
-
-    data = []
-    for country in countries:
-        # Generate pseudo-random coverage based on country hash
-        coverage = round(55 + (hash(country) % 40), 2)
-        coverage = min(100, max(20, coverage))  # Between 20% and 100%
-        data.append(
-            {
-                "country": country,
-                "year": 2023,
-                "administrative_coverage": coverage,
-            }
-        )
-
-    return pd.DataFrame(data)
-
-
 def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int]) -> None:
     """
     Renders a horizontal bar chart of BCG administrative coverage by country for 2023.
@@ -71,19 +19,11 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
     """
     bcg_2023_df = data.get("bcg_coverage_2023", pd.DataFrame())
 
-    # If empty, use test data
     if bcg_2023_df.empty:
-        st.info(
-            "ℹ️ Using test data (database is empty). "
-            "Charts will be updated with real data after ingestion."
-        )
-        bcg_2023_df = get_test_bcg_data()
-
-    if bcg_2023_df.empty:
-        st.info("No BCG coverage data available for 2023.")
+        st.info("No BCG coverage data available in SQL for 2023.")
         return
 
-    st.markdown("**BCG Administrative Coverage by Country (2023)**")
+    st.markdown("**BCG Administrative Coverage by Country (2023) - Top 10**")
 
     # Prepare data
     bcg_2023_df = bcg_2023_df.copy()
@@ -98,7 +38,10 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         st.warning("No valid BCG coverage data for 2023.")
         return
 
-    # Sort by coverage
+    # Keep only the top 10 countries by coverage.
+    bcg_2023_df = bcg_2023_df.sort_values("administrative_coverage", ascending=False).head(10)
+
+    # Sort for horizontal visualization (lowest to highest within top 10).
     bcg_2023_df = bcg_2023_df.sort_values("administrative_coverage", ascending=True)
 
     # Color mapping based on coverage percentage
@@ -165,7 +108,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
     }
 
     st.caption(
-        f"📊 {coverage_stats['total_countries']} countries | "
+        f"📊 Top {coverage_stats['total_countries']} countries | "
         f"Average: {coverage_stats['avg_coverage']:.1f}% | "
         f"Range: {coverage_stats['min_coverage']:.0f}% - {coverage_stats['max_coverage']:.0f}% | "
         f"🟢 High coverage (≥85%): {coverage_stats['high_coverage_count']}"

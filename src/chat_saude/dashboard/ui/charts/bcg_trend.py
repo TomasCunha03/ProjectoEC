@@ -8,65 +8,17 @@ SLOT = "main"
 ORDER = 30
 
 
-@st.cache_data(ttl=300)
-def get_test_bcg_trend():
-    """Get test BCG trend data for development/testing."""
-    countries = [
-        "Afghanistan",
-        "Albania",
-        "Algeria",
-        "Angola",
-        "Argentina",
-        "Australia",
-        "Austria",
-        "Azerbaijan",
-        "Bahamas",
-        "Bangladesh",
-    ]
-
-    data = []
-    for year in range(2018, 2024):
-        for country in countries:
-            # Generate coverage with increasing trend
-            coverage = 50 + (hash(country) % 35) + (year - 2018) * 2.5
-            coverage = min(100, max(20, coverage))  # Between 20% and 100%
-            data.append(
-                {
-                    "year": year,
-                    "country": country,
-                    "administrative_coverage": coverage,
-                }
-            )
-
-    df = pd.DataFrame(data)
-    # Aggregate by year (calculate min, max, avg)
-    trend = (
-        df.groupby("year").agg({"administrative_coverage": ["mean", "min", "max"]}).reset_index()
-    )
-
-    trend.columns = ["year", "avg_coverage", "min_coverage", "max_coverage"]
-    return trend
-
-
 def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int]) -> None:
     """
     Renders a line chart showing BCG administrative coverage trend over years.
 
     Displays the evolution of average BCG coverage across all countries by year,
-    with confidence band showing min/max coverage ranges.
+    with confidence band showing min/max coverage ranges from SQL data.
     """
     bcg_trend_df = data.get("bcg_trend", pd.DataFrame())
 
-    # If empty, use test data
     if bcg_trend_df.empty:
-        st.info(
-            "ℹ️ Using test data (database is empty). "
-            "Charts will be updated with real data after ingestion."
-        )
-        bcg_trend_df = get_test_bcg_trend()
-
-    if bcg_trend_df.empty:
-        st.info("No BCG trend data available.")
+        st.info("No BCG trend data available in SQL.")
         return
 
     st.markdown("**BCG Administrative Coverage Trend**")
