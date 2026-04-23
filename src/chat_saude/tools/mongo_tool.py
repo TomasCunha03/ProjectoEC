@@ -10,7 +10,6 @@ from chat_saude.observability.langfuse_client import end_span, start_span
 from chat_saude.observability.logger import get_logger
 
 LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:1b")
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 logger = get_logger(__name__)
 AGENTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "agents"))
 MONGO_CATALOG_PATH = os.path.join(AGENTS_DIR, "mongo_catalog.yaml")
@@ -291,7 +290,7 @@ def mongo_query(user_question: str) -> str:
         context_parts.append(data_context)
         context = "\n\n".join(context_parts)
 
-        client = ollama.Client(host=OLLAMA_HOST)
+        client = ollama.Client(host=os.getenv("OLLAMA_HOST", "http://ollama:11434"))
         prompt = (
             "Based on the data below from the health MongoDB database, answer "
             "in English clearly and helpfully.\n\n"

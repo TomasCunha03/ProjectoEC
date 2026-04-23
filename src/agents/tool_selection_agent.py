@@ -10,7 +10,13 @@ from chat_saude.observability.logger import get_logger
 logger = get_logger(__name__)
 
 LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:1b")
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
+
+
+def ollama_base_url() -> str:
+    """Read on each call so OLLAMA_HOST can be adjusted (e.g. eval host vs Docker)."""
+
+    return os.getenv("OLLAMA_HOST", "http://ollama:11434")
+
 
 logger.info("Tool selection agent using model: %s", LLM_MODEL)
 
@@ -41,7 +47,7 @@ def select_tool(user_question: str) -> dict:
         {"role": "user", "content": user_question},
     ]
 
-    client = ollama.Client(host=OLLAMA_HOST)
+    client = ollama.Client(host=ollama_base_url())
     response = client.chat(model=LLM_MODEL, messages=messages, options={"temperature": 0.0})
     answer = response["message"]["content"].strip()
 

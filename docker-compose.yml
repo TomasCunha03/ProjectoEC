@@ -59,6 +59,7 @@ services:
       - db_nosql
       - db_vector
       - langfuse
+      - ollama
 
   db_nosql:
     image: mongo:latest

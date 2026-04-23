@@ -1,0 +1,19 @@
+
+=== DrHouseGPT startup eval (10 cases) ===
+(report file: /home/To_Magro/Documents/Mestrado/2Sem/PEC/ProjetoEC/eval_report.txt)
+(OLLAMA_HOST=http://127.0.0.1:11434)
+
+[ok] rules_too_short (rules / validation) 0.0s — rules
+[ok] rules_emergency (rules / urgency) 0.1s — rules
+[ok] rules_identity (rules / FAQ — identity) 0.0s — rules
+[ok] rules_capabilities (rules / FAQ — what do you do) 0.0s — rules
+[ok] rules_non_medical (rules / off-topic (stupid question)) 0.0s — rules
+[ok] rules_gibberish (rules / low-signal nonsense) 0.0s — rules
+[FAIL] tool_mongo_who (mongo — WHO / indicators) 9.7s — exception: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+[FAIL] tool_mongo_disease (mongo — MedlinePlus-style disease summary) 19.9s — exception: Command find requires authentication, full error: {'ok': 0.0, 'errmsg': 'Command find requires authentication', 'code': 13, 'codeName': 'Unauthorized'}
+[FAIL] tool_sql_stats (sql — structured stats / facts) 12.1s — exception: (psycopg2.OperationalError) connection to server at "localhost" (::1), port 5432 failed: fe_sendauth: no password supplied
+
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+[FAIL] tool_rag_chroma (rag / chroma — literature & mechanisms) 39.0s — exception: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+=== Summary: 6/10 passed, failed: tool_mongo_who, tool_mongo_disease, tool_sql_stats, tool_rag_chroma ===
+
