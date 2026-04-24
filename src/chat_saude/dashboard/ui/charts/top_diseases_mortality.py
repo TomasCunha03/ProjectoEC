@@ -20,7 +20,11 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
     df["drug_count"] = pd.to_numeric(df["drug_count"], errors="coerce")
     df = df.dropna(subset=["avg_rating"]).sort_values("avg_rating", ascending=True)
 
-    st.markdown("**Top 10 Best-Rated Conditions by Drug Treatment**")
+    condition = summary.get("global_disease_name")
+    if condition:
+        st.markdown(f"**Top-Rated Drugs for {condition.title()}**")
+    else:
+        st.markdown("**Top 10 Best-Rated Conditions by Drug Treatment**")
 
     fig = px.bar(
         df,

@@ -79,9 +79,9 @@ class DashboardDataService:
             "topics": row["topics"] or [],
         }
 
-    def get_risk_factor_disease_correlation(self) -> pd.DataFrame:
+    def get_risk_factor_disease_correlation(self, filters: DashboardFilters) -> pd.DataFrame:
         """Get risk factor vs disease diagnosis correlation from BRFSS data."""
-        statement, params = queries.risk_factor_disease_query()
+        statement, params = queries.risk_factor_disease_query(filters)
         return self._run(statement, params)
 
     def get_cost_effectiveness(self, filters: DashboardFilters) -> pd.DataFrame:
@@ -89,14 +89,14 @@ class DashboardDataService:
         statement, params = queries.cost_effectiveness_query(filters)
         return self._run(statement, params)
 
-    def get_top_conditions_by_drugs(self) -> pd.DataFrame:
-        statement, params = queries.top_conditions_by_drugs_query()
+    def get_top_conditions_by_drugs(self, filters: DashboardFilters) -> pd.DataFrame:
+        statement, params = queries.top_conditions_by_drugs_query(filters)
         return self._run(statement, params)
 
-    def get_avg_rating_by_condition(self) -> pd.DataFrame:
-        statement, params = queries.avg_rating_by_condition_query()
+    def get_avg_rating_by_condition(self, filters: DashboardFilters) -> pd.DataFrame:
+        statement, params = queries.avg_rating_by_condition_query(filters)
         return self._run(statement, params)
 
-    def get_pregnancy_category(self) -> pd.DataFrame:
-        statement, params = queries.pregnancy_category_query()
+    def get_pregnancy_category(self, filters: DashboardFilters) -> pd.DataFrame:
+        statement, params = queries.pregnancy_category_query(filters)
         return self._run(statement, params)

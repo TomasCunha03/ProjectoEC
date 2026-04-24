@@ -22,7 +22,90 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         st.info("No BRFSS risk factor data available.")
         return
 
-    st.markdown("**Risk Factor vs Disease Correlation (BRFSS Data)**")
+    _US_STATES = [
+        "All States",
+        "Alabama",
+        "Alaska",
+        "Arizona",
+        "Arkansas",
+        "California",
+        "Colorado",
+        "Connecticut",
+        "Delaware",
+        "Florida",
+        "Georgia",
+        "Hawaii",
+        "Idaho",
+        "Illinois",
+        "Indiana",
+        "Iowa",
+        "Kansas",
+        "Kentucky",
+        "Louisiana",
+        "Maine",
+        "Maryland",
+        "Massachusetts",
+        "Michigan",
+        "Minnesota",
+        "Mississippi",
+        "Missouri",
+        "Montana",
+        "Nebraska",
+        "Nevada",
+        "New Hampshire",
+        "New Jersey",
+        "New Mexico",
+        "New York",
+        "North Carolina",
+        "North Dakota",
+        "Ohio",
+        "Oklahoma",
+        "Oregon",
+        "Pennsylvania",
+        "Rhode Island",
+        "South Carolina",
+        "South Dakota",
+        "Tennessee",
+        "Texas",
+        "Utah",
+        "Vermont",
+        "Virginia",
+        "Washington",
+        "West Virginia",
+        "Wisconsin",
+        "Wyoming",
+    ]
+
+    # State selector — dashboard_filters is the single source of truth.
+    # We delete the widget key before each render so Streamlit always uses
+    # the index= parameter (guaranteed to work) instead of cached widget state.
+    # After render, if the user picked something different we propagate it back
+    # to dashboard_filters and rerun so the data layer re-fetches.
+    chat_location = summary.get("chronic_location") or ""
+    desired_state = chat_location.title() if chat_location.title() in _US_STATES else "All States"
+    desired_index = _US_STATES.index(desired_state)
+
+    # Drop stale widget state so index= is always honoured
+    st.session_state.pop("risk_heatmap_state_selector", None)
+
+    selected_state = st.selectbox(
+        "Filter by US State",
+        options=_US_STATES,
+        index=desired_index,
+        key="risk_heatmap_state_selector",
+    )
+
+    # Propagate manual selection back to dashboard_filters
+    new_location = "" if selected_state == "All States" else selected_state
+    current_location = st.session_state.get("dashboard_filters", {}).get("chronic_location", "")
+    if new_location != current_location:
+        if "dashboard_filters" not in st.session_state:
+            st.session_state["dashboard_filters"] = {}
+        st.session_state["dashboard_filters"]["chronic_location"] = new_location
+        st.rerun()
+
+    state_label = f" — {selected_state}" if selected_state != "All States" else ""
+    st.markdown(f"**Risk Factor vs Disease Correlation (BRFSS Data{state_label})**")
 
     # Prepare data
     risk_df = risk_df.copy()
@@ -31,7 +114,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         "diabetes_cases": "Diabetes",
         "asthma_cases": "Asthma",
         "heart_attack_cases": "Heart Attack",
-        "coronary_heart_disease_cases": "Coronary Heart Disease",
+        "chd_cases": "Coronary Heart Disease",
         "stroke_cases": "Stroke",
         "copd_cases": "COPD",
         "depressive_disorder_cases": "Depressive Disorder",

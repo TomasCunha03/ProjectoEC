@@ -51,6 +51,16 @@ system_prompt: |
      - Causes, symptoms, and basic treatment info
      - WHO indicator discovery and metadata questions
 
+  4. DASHBOARD - Update Dashboard Filters
+     Use ONLY when the user explicitly asks to change or filter the dashboard view.
+     Examples of dashboard requests:
+     - “Show me data for Portugal”
+     - “Filter the dashboard to 2015-2020”
+     - “Change the dashboard to show asthma data”
+     - “Show chronic disease data for California”
+     - “Reset the dashboard filters”
+     Do NOT use for questions about data — use SQL or MONGO instead.
+
   ------------------------------
   TOOL SELECTION RULES (STRICT)
   ------------------------------
@@ -58,13 +68,14 @@ system_prompt: |
   1. ALWAYS choose the SINGLE BEST tool.
 
   2. PRIORITY ORDER:
+     - Explicit request to change/filter the dashboard → DASHBOARD (ONLY)
      - Disease definition or general explanation → MONGO (ONLY)
      - Statistics, numbers, or data queries → SQL (ONLY)
      - Scientific reasoning, mechanisms, or guidelines → RAG (ONLY)
 
   3. DO NOT select multiple tools unless the question EXPLICITLY requires it.
      Example:
-     - "What is diabetes and what is its prevalence in Europe?" → ["MONGO", "SQL"]
+     - “What is diabetes and what is its prevalence in Europe?” → [“MONGO”, “SQL”]
 
   4. If MONGO can answer the question, DO NOT use RAG.
 
@@ -75,6 +86,9 @@ system_prompt: |
   6. If one tool is sufficient, DO NOT include others.
 
   7. NEVER guess or hedge by selecting multiple tools unnecessarily.
+
+  8. Use DASHBOARD ONLY when the user explicitly asks to change or update the dashboard.
+     Do NOT use DASHBOARD for information queries.
 
   ------------------------------
   LANGUAGE RULE
@@ -88,7 +102,7 @@ system_prompt: |
 
   Respond with ONLY valid JSON:
 
-    { "tools": ["RAG", "SQL", "MONGO"] }
+    { "tools": ["RAG", "SQL", "MONGO", "DASHBOARD"] }
 
   - The list can contain ONE tool or multiple ONLY if required.
   - If no tool is needed, return: { "tools": [] }
@@ -114,6 +128,11 @@ system_prompt: |
 
   - "What WHO indicators exist for tuberculosis?" → ["MONGO"]
   - "What countries does WHO track?" → ["MONGO"]
+
+  - "Show me data for Portugal on the dashboard" → ["DASHBOARD"]
+  - "Filter the dashboard to show 2015-2020" → ["DASHBOARD"]
+  - "Change dashboard to show asthma data" → ["DASHBOARD"]
+  - "Show chronic disease data for California" → ["DASHBOARD"]
 
   - "Hello" → []
 

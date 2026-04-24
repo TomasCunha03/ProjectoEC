@@ -149,7 +149,23 @@ def chat_page():
                 if r.status_code != 200:
                     response = f"API error: {r.status_code} - {r.text}"
                 else:
-                    response = r.json().get("response", "No response from API.")
+                    resp_json = r.json()
+                    response = resp_json.get("response", "No response from API.")
+
+                    # If the API returned dashboard filters, update session state
+                    if "dashboard_filters" in resp_json:
+                        new_filters = resp_json["dashboard_filters"]
+                        if isinstance(new_filters, dict):
+                            if new_filters:
+                                # Merge new filters into existing ones
+                                current = st.session_state.get("dashboard_filters", {})
+                                if not isinstance(current, dict):
+                                    current = {}
+                                current.update(new_filters)
+                                st.session_state.dashboard_filters = current
+                            else:
+                                # Empty dict means reset all filters
+                                st.session_state.dashboard_filters = {}
             except requests.RequestException as exc:
                 response = f"API connection error: {exc}"
 

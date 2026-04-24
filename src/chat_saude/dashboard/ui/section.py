@@ -12,7 +12,6 @@ from chat_saude.dashboard.filters import DashboardFilters
 from chat_saude.dashboard.ui import charts
 from chat_saude.dashboard.ui.data import (
     build_dashboard_summary,
-    clear_dashboard_cache,
     get_dashboard_data,
 )
 
@@ -63,7 +62,7 @@ def render_dashboard_section(filters: DashboardFilters) -> None:
         st.error(f"Could not load SQL dashboard data: {exc}")
         return
 
-    summary = build_dashboard_summary(data)
+    summary = build_dashboard_summary(data, filters)
 
     metric_1, metric_2, metric_3 = st.columns(3)
     with metric_1:
@@ -122,14 +121,18 @@ def render_dashboard_section(filters: DashboardFilters) -> None:
     st.markdown("### 💊 Drug Insights")
     with st.container(border=True):
         _render_in_columns(
-            _take_modules(["top_conditions_by_drugs", "top_diseases_mortality", "yearly_recovery_trend"]),
+            _take_modules(
+                [
+                    "top_conditions_by_drugs",
+                    "top_diseases_mortality",
+                    "yearly_recovery_trend",
+                ]
+            ),
             num_cols=2,
         )
 
     remaining = [
-        renderer
-        for _, module_name, renderer in main_renderers
-        if module_name not in used_modules
+        renderer for _, module_name, renderer in main_renderers if module_name not in used_modules
     ]
     if remaining:
         st.markdown("### ➕ Additional Charts")

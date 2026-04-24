@@ -62,6 +62,7 @@ def select_tool(user_question: str) -> dict:
         "RAG": "rag_answer",
         "SQL": "sql_query",
         "MONGO": "mongo_query",
+        "DASHBOARD": "dashboard_query",
     }
 
     selected_tools: list[str] = []

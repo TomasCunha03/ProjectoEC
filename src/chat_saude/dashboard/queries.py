@@ -19,16 +19,16 @@ def _build_global_where(filters: DashboardFilters) -> tuple[str, dict[str, Any]]
         params["global_end_year"] = filters.global_end_year
 
     if filters.global_country:
-        clauses.append("country = :global_country")
+        clauses.append("country ILIKE :global_country")
         params["global_country"] = filters.global_country
 
     if filters.global_disease_name:
-        clauses.append("disease_name = :global_disease_name")
-        params["global_disease_name"] = filters.global_disease_name
+        clauses.append("disease_name ILIKE :global_disease_name")
+        params["global_disease_name"] = f"%{filters.global_disease_name}%"
 
     if filters.global_disease_category:
-        clauses.append("disease_category = :global_disease_category")
-        params["global_disease_category"] = filters.global_disease_category
+        clauses.append("disease_category ILIKE :global_disease_category")
+        params["global_disease_category"] = f"%{filters.global_disease_category}%"
 
     return " AND ".join(clauses), params
 
@@ -46,12 +46,12 @@ def _build_chronic_where(filters: DashboardFilters) -> tuple[str, dict[str, Any]
         params["chronic_end_year"] = filters.chronic_end_year
 
     if filters.chronic_location:
-        clauses.append("location_desc = :chronic_location")
-        params["chronic_location"] = filters.chronic_location
+        clauses.append("location_desc ILIKE :chronic_location")
+        params["chronic_location"] = f"%{filters.chronic_location}%"
 
     if filters.chronic_topic:
-        clauses.append("topic = :chronic_topic")
-        params["chronic_topic"] = filters.chronic_topic
+        clauses.append("topic ILIKE :chronic_topic")
+        params["chronic_topic"] = f"%{filters.chronic_topic}%"
 
     return " AND ".join(clauses), params
 
@@ -283,13 +283,58 @@ def bcg_trend_query() -> tuple[TextClause, dict[str, Any]]:
     return statement, params
 
 
-def risk_factor_disease_query() -> tuple[TextClause, dict[str, Any]]:
+# FIPS codes for US states (BRFSS state_code column)
+_BRFSS_STATE_FIPS: dict[str, int] = {
+    "Alabama": 1, "Alaska": 2, "Arizona": 4, "Arkansas": 5,
+    "California": 6, "Colorado": 8, "Connecticut": 9, "Delaware": 10,
+    "Florida": 12, "Georgia": 13, "Hawaii": 15, "Idaho": 16,
+    "Illinois": 17, "Indiana": 18, "Iowa": 19, "Kansas": 20,
+    "Kentucky": 21, "Louisiana": 22, "Maine": 23, "Maryland": 24,
+    "Massachusetts": 25, "Michigan": 26, "Minnesota": 27, "Mississippi": 28,
+    "Missouri": 29, "Montana": 30, "Nebraska": 31, "Nevada": 32,
+    "New Hampshire": 33, "New Jersey": 34, "New Mexico": 35, "New York": 36,
+    "North Carolina": 37, "North Dakota": 38, "Ohio": 39, "Oklahoma": 40,
+    "Oregon": 41, "Pennsylvania": 42, "Rhode Island": 44,
+    "South Carolina": 45, "South Dakota": 46, "Tennessee": 47,
+    "Texas": 48, "Utah": 49, "Vermont": 50, "Virginia": 51,
+    "Washington": 53, "West Virginia": 54, "Wisconsin": 55, "Wyoming": 56,
+}
+
+
+def resolve_state_fips(location: str) -> int | None:
+    """Map a state name (full or partial) to its FIPS code."""
+    title = location.strip().title()
+    if title in _BRFSS_STATE_FIPS:
+        return _BRFSS_STATE_FIPS[title]
+    for name, code in _BRFSS_STATE_FIPS.items():
+        if title.lower() in name.lower() or name.lower() in title.lower():
+            return code
+    return None
+
+
+def risk_factor_disease_query(
+    filters: DashboardFilters,
+) -> tuple[TextClause, dict[str, Any]]:
     """
-    Query for risk factor vs disease correlation from BRFSS data.
-    Returns counts of disease diagnoses grouped by risk factor presence.
+    BRFSS risk factor vs disease correlation.
+    Optionally filtered to a single US state via chronic_location.
     """
+    params: dict[str, Any] = {}
+    cte_filter = ""
+
+    if filters.chronic_location:
+        fips = resolve_state_fips(filters.chronic_location)
+        if fips is not None:
+            cte_filter = "WHERE state_code = :state_code"
+            params["state_code"] = fips
+
+    # fmt: off
     statement = text(
-        """
+        f"""
+        WITH brfss AS (
+            SELECT * FROM brfss_responses
+            {cte_filter}
+        )
         SELECT
             CASE WHEN smoke_100 = 1 THEN 'Smoker' ELSE 'Non-Smoker' END AS risk_factor,
             'Smoking' AS risk_category,
@@ -305,128 +350,103 @@ def risk_factor_disease_query() -> tuple[TextClause, dict[str, Any]]:
             SUM(CASE WHEN diagnosed_skin_cancer = 1 THEN 1 ELSE 0 END) AS skin_cancer_cases,
             SUM(CASE WHEN diagnosed_other_cancer = 1 THEN 1 ELSE 0 END) AS other_cancer_cases,
             COUNT(*) AS total_respondents
-        FROM brfss_responses
-        WHERE smoke_100 IS NOT NULL
-        GROUP BY smoke_100
-        
+        FROM brfss WHERE smoke_100 IS NOT NULL GROUP BY smoke_100
         UNION ALL
-        
         SELECT
-            CASE WHEN high_blood_pressure = 1 THEN 'High BP' ELSE 'Normal BP' END AS risk_factor,
-            'Blood Pressure' AS risk_category,
-            SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END) AS diabetes_cases,
-            SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END) AS asthma_cases,
-            SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END) AS heart_attack_cases,
-            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS chd_cases,
-            SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END) AS stroke_cases,
-            SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END) AS copd_cases,
-            SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END) AS depressive_disorder_cases,
-            SUM(CASE WHEN diagnosed_kidney_dis = 1 THEN 1 ELSE 0 END) AS kidney_disease_cases,
-            SUM(CASE WHEN diagnosed_arthritis = 1 THEN 1 ELSE 0 END) AS arthritis_cases,
-            SUM(CASE WHEN diagnosed_skin_cancer = 1 THEN 1 ELSE 0 END) AS skin_cancer_cases,
-            SUM(CASE WHEN diagnosed_other_cancer = 1 THEN 1 ELSE 0 END) AS other_cancer_cases,
-            COUNT(*) AS total_respondents
-        FROM brfss_responses
-        WHERE high_blood_pressure IS NOT NULL
-        GROUP BY high_blood_pressure
-        
+            CASE WHEN high_blood_pressure = 1 THEN 'High BP' ELSE 'Normal BP' END,
+            'Blood Pressure',
+            SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_kidney_dis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_arthritis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_skin_cancer = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_other_cancer = 1 THEN 1 ELSE 0 END),
+            COUNT(*)
+        FROM brfss WHERE high_blood_pressure IS NOT NULL GROUP BY high_blood_pressure
         UNION ALL
-        
         SELECT
-            CASE WHEN high_cholesterol = 1 THEN 'High Chol' ELSE 'Normal Chol' END AS risk_factor,
-            'Cholesterol' AS risk_category,
-            SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END) AS diabetes_cases,
-            SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END) AS asthma_cases,
-            SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END) AS heart_attack_cases,
-            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS chd_cases,
-            SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END) AS stroke_cases,
-            SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END) AS copd_cases,
-            SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END) AS depressive_disorder_cases,
-            SUM(CASE WHEN diagnosed_kidney_dis = 1 THEN 1 ELSE 0 END) AS kidney_disease_cases,
-            SUM(CASE WHEN diagnosed_arthritis = 1 THEN 1 ELSE 0 END) AS arthritis_cases,
-            SUM(CASE WHEN diagnosed_skin_cancer = 1 THEN 1 ELSE 0 END) AS skin_cancer_cases,
-            SUM(CASE WHEN diagnosed_other_cancer = 1 THEN 1 ELSE 0 END) AS other_cancer_cases,
-            COUNT(*) AS total_respondents
-        FROM brfss_responses
-        WHERE high_cholesterol IS NOT NULL
-        GROUP BY high_cholesterol
-        
+            CASE WHEN high_cholesterol = 1 THEN 'High Chol' ELSE 'Normal Chol' END,
+            'Cholesterol',
+            SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_kidney_dis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_arthritis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_skin_cancer = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_other_cancer = 1 THEN 1 ELSE 0 END),
+            COUNT(*)
+        FROM brfss WHERE high_cholesterol IS NOT NULL GROUP BY high_cholesterol
         UNION ALL
-        
         SELECT
-            CASE WHEN alcohol_binge = 1 THEN 'Binge Drinker' ELSE 'Non-Binge' END AS risk_factor,
-            'Alcohol Use' AS risk_category,
-            SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END) AS diabetes_cases,
-            SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END) AS asthma_cases,
-            SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END) AS heart_attack_cases,
-            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS chd_cases,
-            SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END) AS stroke_cases,
-            SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END) AS copd_cases,
-            SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END) AS depressive_disorder_cases,
-            SUM(CASE WHEN diagnosed_kidney_dis = 1 THEN 1 ELSE 0 END) AS kidney_disease_cases,
-            SUM(CASE WHEN diagnosed_arthritis = 1 THEN 1 ELSE 0 END) AS arthritis_cases,
-            SUM(CASE WHEN diagnosed_skin_cancer = 1 THEN 1 ELSE 0 END) AS skin_cancer_cases,
-            SUM(CASE WHEN diagnosed_other_cancer = 1 THEN 1 ELSE 0 END) AS other_cancer_cases,
-            COUNT(*) AS total_respondents
-        FROM brfss_responses
-        WHERE alcohol_binge IS NOT NULL
-        GROUP BY alcohol_binge
-        
+            CASE WHEN alcohol_binge = 1 THEN 'Binge Drinker' ELSE 'Non-Binge' END,
+            'Alcohol Use',
+            SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_kidney_dis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_arthritis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_skin_cancer = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_other_cancer = 1 THEN 1 ELSE 0 END),
+            COUNT(*)
+        FROM brfss WHERE alcohol_binge IS NOT NULL GROUP BY alcohol_binge
         UNION ALL
-        
         SELECT
-            CASE WHEN exercise_any = 1 THEN 'Exercises' ELSE 'No Exercise' END AS risk_factor,
-            'Physical Activity' AS risk_category,
-            SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END) AS diabetes_cases,
-            SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END) AS asthma_cases,
-            SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END) AS heart_attack_cases,
-            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS chd_cases,
-            SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END) AS stroke_cases,
-            SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END) AS copd_cases,
-            SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END) AS depressive_disorder_cases,
-            SUM(CASE WHEN diagnosed_kidney_dis = 1 THEN 1 ELSE 0 END) AS kidney_disease_cases,
-            SUM(CASE WHEN diagnosed_arthritis = 1 THEN 1 ELSE 0 END) AS arthritis_cases,
-            SUM(CASE WHEN diagnosed_skin_cancer = 1 THEN 1 ELSE 0 END) AS skin_cancer_cases,
-            SUM(CASE WHEN diagnosed_other_cancer = 1 THEN 1 ELSE 0 END) AS other_cancer_cases,
-            COUNT(*) AS total_respondents
-        FROM brfss_responses
-        WHERE exercise_any IS NOT NULL
-        GROUP BY exercise_any
-        
+            CASE WHEN exercise_any = 1 THEN 'Exercises' ELSE 'No Exercise' END,
+            'Physical Activity',
+            SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_kidney_dis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_arthritis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_skin_cancer = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_other_cancer = 1 THEN 1 ELSE 0 END),
+            COUNT(*)
+        FROM brfss WHERE exercise_any IS NOT NULL GROUP BY exercise_any
         UNION ALL
-        
         SELECT
-            CASE 
+            CASE
                 WHEN bmi < 18.5 THEN 'Underweight'
-                WHEN bmi >= 18.5 AND bmi < 25 THEN 'Normal Weight'
-                WHEN bmi >= 25 AND bmi < 30 THEN 'Overweight'
+                WHEN bmi < 25 THEN 'Normal Weight'
+                WHEN bmi < 30 THEN 'Overweight'
                 ELSE 'Obese'
-            END AS risk_factor,
-            'BMI Category' AS risk_category,
-            SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END) AS diabetes_cases,
-            SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END) AS asthma_cases,
-            SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END) AS heart_attack_cases,
-            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS chd_cases,
-            SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END) AS stroke_cases,
-            SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END) AS copd_cases,
-            SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END) AS depressive_disorder_cases,
-            SUM(CASE WHEN diagnosed_kidney_dis = 1 THEN 1 ELSE 0 END) AS kidney_disease_cases,
-            SUM(CASE WHEN diagnosed_arthritis = 1 THEN 1 ELSE 0 END) AS arthritis_cases,
-            SUM(CASE WHEN diagnosed_skin_cancer = 1 THEN 1 ELSE 0 END) AS skin_cancer_cases,
-            SUM(CASE WHEN diagnosed_other_cancer = 1 THEN 1 ELSE 0 END) AS other_cancer_cases,
-            COUNT(*) AS total_respondents
-        FROM brfss_responses
-        WHERE bmi IS NOT NULL
-        GROUP BY 
-            CASE 
-                WHEN bmi < 18.5 THEN 'Underweight'
-                WHEN bmi >= 18.5 AND bmi < 25 THEN 'Normal Weight'
-                WHEN bmi >= 25 AND bmi < 30 THEN 'Overweight'
-                ELSE 'Obese'
-            END
-        
+            END,
+            'BMI Category',
+            SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_kidney_dis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_arthritis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_skin_cancer = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_other_cancer = 1 THEN 1 ELSE 0 END),
+            COUNT(*)
+        FROM brfss WHERE bmi IS NOT NULL
+        GROUP BY CASE
+            WHEN bmi < 18.5 THEN 'Underweight'
+            WHEN bmi < 25 THEN 'Normal Weight'
+            WHEN bmi < 30 THEN 'Overweight'
+            ELSE 'Obese' END
         UNION ALL
-        
         SELECT
             CASE
                 WHEN general_health = 1 THEN 'Excellent Health'
@@ -435,26 +455,25 @@ def risk_factor_disease_query() -> tuple[TextClause, dict[str, Any]]:
                 WHEN general_health = 4 THEN 'Fair Health'
                 WHEN general_health = 5 THEN 'Poor Health'
                 ELSE 'Unknown Health'
-            END AS risk_factor,
-            'Self-Rated Health' AS risk_category,
-            SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END) AS diabetes_cases,
-            SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END) AS asthma_cases,
-            SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END) AS heart_attack_cases,
-            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END) AS chd_cases,
-            SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END) AS stroke_cases,
-            SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END) AS copd_cases,
-            SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END) AS depressive_disorder_cases,
-            SUM(CASE WHEN diagnosed_kidney_dis = 1 THEN 1 ELSE 0 END) AS kidney_disease_cases,
-            SUM(CASE WHEN diagnosed_arthritis = 1 THEN 1 ELSE 0 END) AS arthritis_cases,
-            SUM(CASE WHEN diagnosed_skin_cancer = 1 THEN 1 ELSE 0 END) AS skin_cancer_cases,
-            SUM(CASE WHEN diagnosed_other_cancer = 1 THEN 1 ELSE 0 END) AS other_cancer_cases,
-            COUNT(*) AS total_respondents
-        FROM brfss_responses
-        WHERE general_health IS NOT NULL
-        GROUP BY general_health
+            END,
+            'Self-Rated Health',
+            SUM(CASE WHEN diagnosed_diabetes = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_asthma = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_heart_attack = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_heart_dis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_stroke = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_copd = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_depressive = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_kidney_dis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_arthritis = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_skin_cancer = 1 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN diagnosed_other_cancer = 1 THEN 1 ELSE 0 END),
+            COUNT(*)
+        FROM brfss WHERE general_health IS NOT NULL GROUP BY general_health
         """
     )
-    return statement, {}
+    # fmt: on
+    return statement, params
 
 
 def cost_effectiveness_query(filters: DashboardFilters) -> tuple[TextClause, dict[str, Any]]:
@@ -487,8 +506,28 @@ def cost_effectiveness_query(filters: DashboardFilters) -> tuple[TextClause, dic
     return statement, params
 
 
-def top_conditions_by_drugs_query() -> tuple[TextClause, dict[str, Any]]:
-    """Top 10 medical conditions by number of drugs, with average drug rating."""
+def top_conditions_by_drugs_query(
+    filters: DashboardFilters,
+) -> tuple[TextClause, dict[str, Any]]:
+    """Top 10 conditions by drug count (overview) or top drugs for a condition (zoom)."""
+    if filters.global_disease_name:
+        # Zoom in: show individual drugs for the selected condition
+        statement = text(
+            """
+            SELECT
+                drug_name        AS medical_condition,
+                no_of_reviews    AS drug_count,
+                rating           AS avg_rating
+            FROM drugs_side_effects
+            WHERE medical_condition ILIKE :condition
+              AND drug_name IS NOT NULL
+              AND no_of_reviews IS NOT NULL
+            ORDER BY no_of_reviews DESC NULLS LAST
+            LIMIT 10
+            """
+        )
+        return statement, {"condition": f"%{filters.global_disease_name}%"}
+
     statement = text(
         """
         SELECT
@@ -505,8 +544,28 @@ def top_conditions_by_drugs_query() -> tuple[TextClause, dict[str, Any]]:
     return statement, {}
 
 
-def avg_rating_by_condition_query() -> tuple[TextClause, dict[str, Any]]:
-    """Top 10 medical conditions by average drug rating (min 5 drugs)."""
+def avg_rating_by_condition_query(
+    filters: DashboardFilters,
+) -> tuple[TextClause, dict[str, Any]]:
+    """Top 10 conditions by avg rating (overview) or top-rated drugs for a condition (zoom)."""
+    if filters.global_disease_name:
+        # Zoom in: individual drug ratings for the selected condition
+        statement = text(
+            """
+            SELECT
+                drug_name     AS medical_condition,
+                rating        AS avg_rating,
+                no_of_reviews AS drug_count
+            FROM drugs_side_effects
+            WHERE medical_condition ILIKE :condition
+              AND rating IS NOT NULL
+              AND drug_name IS NOT NULL
+            ORDER BY rating DESC NULLS LAST
+            LIMIT 10
+            """
+        )
+        return statement, {"condition": f"%{filters.global_disease_name}%"}
+
     statement = text(
         """
         SELECT
@@ -525,10 +584,18 @@ def avg_rating_by_condition_query() -> tuple[TextClause, dict[str, Any]]:
     return statement, {}
 
 
-def pregnancy_category_query() -> tuple[TextClause, dict[str, Any]]:
-    """Distribution of drugs by FDA pregnancy safety category."""
+def pregnancy_category_query(
+    filters: DashboardFilters,
+) -> tuple[TextClause, dict[str, Any]]:
+    """FDA pregnancy safety categories — optionally filtered to a specific condition."""
+    params: dict[str, Any] = {}
+    condition_clause = ""
+    if filters.global_disease_name:
+        condition_clause = "AND medical_condition ILIKE :condition"
+        params["condition"] = f"%{filters.global_disease_name}%"
+
     statement = text(
-        """
+        f"""
         SELECT
             pregnancy_category,
             COUNT(*) AS drug_count
@@ -536,8 +603,9 @@ def pregnancy_category_query() -> tuple[TextClause, dict[str, Any]]:
         WHERE pregnancy_category IS NOT NULL
           AND pregnancy_category != ''
           AND pregnancy_category != 'N'
+          {condition_clause}
         GROUP BY pregnancy_category
         ORDER BY pregnancy_category ASC
         """
     )
-    return statement, {}
+    return statement, params

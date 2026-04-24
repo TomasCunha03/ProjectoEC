@@ -20,11 +20,11 @@ def get_dashboard_data(filters: DashboardFilters) -> dict[str, pd.DataFrame]:
         "global_map": service.get_global_country_mortality(filters),
         "bcg_coverage_2023": service.get_bcg_coverage_2023(),
         "bcg_trend": service.get_bcg_trend(),
-        "risk_factor_disease": service.get_risk_factor_disease_correlation(),
+        "risk_factor_disease": service.get_risk_factor_disease_correlation(filters),
         "cost_effectiveness": service.get_cost_effectiveness(filters),
-        "top_conditions_by_drugs": service.get_top_conditions_by_drugs(),
-        "avg_rating_by_condition": service.get_avg_rating_by_condition(),
-        "pregnancy_category": service.get_pregnancy_category(),
+        "top_conditions_by_drugs": service.get_top_conditions_by_drugs(filters),
+        "avg_rating_by_condition": service.get_avg_rating_by_condition(filters),
+        "pregnancy_category": service.get_pregnancy_category(filters),
     }
 
 
@@ -44,13 +44,18 @@ def _safe_int(value: object, default: int = 0) -> int:
     return int(value)
 
 
-def build_dashboard_summary(data: dict[str, pd.DataFrame]) -> dict[str, float | int]:
+def build_dashboard_summary(
+    data: dict[str, pd.DataFrame],
+    filters: "DashboardFilters | None" = None,
+) -> dict:
     global_kpi_df = data.get("global_kpis", pd.DataFrame())
 
-    summary = {
+    summary: dict = {
         "avg_mortality_rate": 0.0,
         "avg_recovery_rate": 0.0,
         "countries_count": 0,
+        "global_disease_name": filters.global_disease_name if filters else None,
+        "chronic_location": filters.chronic_location if filters else None,
     }
 
     if not global_kpi_df.empty:
