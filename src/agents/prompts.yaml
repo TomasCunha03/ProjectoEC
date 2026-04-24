@@ -52,7 +52,7 @@ system_prompt: |
      - WHO indicator discovery and metadata questions
 
   4. DASHBOARD - Update Dashboard Filters
-     Use ONLY when the user explicitly asks to change or filter the dashboard view.
+     Use ONLY when the user EXPLICITLY asks to change or filter the dashboard view.
      Examples of dashboard requests:
      - “Show me data for Portugal”
      - “Filter the dashboard to 2015-2020”
@@ -90,6 +90,10 @@ system_prompt: |
   8. Use DASHBOARD ONLY when the user explicitly asks to change or update the dashboard.
      Do NOT use DASHBOARD for information queries.
 
+  9. Always try to select one tool. Only return an empty list if NO tool can answer the question.
+
+  10. If you choose DASHBOARD, DO NOT include any other tool.
+
   ------------------------------
   LANGUAGE RULE
   ------------------------------
@@ -105,7 +109,7 @@ system_prompt: |
     { "tools": ["RAG", "SQL", "MONGO", "DASHBOARD"] }
 
   - The list can contain ONE tool or multiple ONLY if required.
-  - If no tool is needed, return: { "tools": [] }
+  - If no tool can answer the question, return: { "tools": [] }
   - Do NOT include any explanation or extra text.
 
   ------------------------------

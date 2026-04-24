@@ -18,8 +18,8 @@ def get_dashboard_data(filters: DashboardFilters) -> dict[str, pd.DataFrame]:
     return {
         "global_kpis": service.get_global_kpis(filters),
         "global_map": service.get_global_country_mortality(filters),
-        "bcg_coverage_2023": service.get_bcg_coverage_2023(),
-        "bcg_trend": service.get_bcg_trend(),
+        "bcg_coverage_2023": service.get_bcg_coverage_2023(filters),
+        "bcg_trend": service.get_bcg_trend(filters),
         "risk_factor_disease": service.get_risk_factor_disease_correlation(filters),
         "cost_effectiveness": service.get_cost_effectiveness(filters),
         "top_conditions_by_drugs": service.get_top_conditions_by_drugs(filters),
@@ -44,6 +44,16 @@ def _safe_int(value: object, default: int = 0) -> int:
     return int(value)
 
 
+def _resolve_top_n(value: object, default: int = 10) -> int:
+    if value is None:
+        return default
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(1, min(parsed, 100))
+
+
 def build_dashboard_summary(
     data: dict[str, pd.DataFrame],
     filters: "DashboardFilters | None" = None,
@@ -55,6 +65,14 @@ def build_dashboard_summary(
         "avg_recovery_rate": 0.0,
         "countries_count": 0,
         "global_disease_name": filters.global_disease_name if filters else None,
+        "immunization_start_year": filters.immunization_start_year if filters else None,
+        "immunization_end_year": filters.immunization_end_year if filters else None,
+        "vaccine_code": (
+            filters.vaccine_code.strip().upper()
+            if filters and isinstance(filters.vaccine_code, str) and filters.vaccine_code.strip()
+            else None
+        ),
+        "top_n": _resolve_top_n(filters.top_n) if filters else 10,
         "chronic_location": filters.chronic_location if filters else None,
     }
 

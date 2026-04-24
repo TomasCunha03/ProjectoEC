@@ -6,6 +6,16 @@ from sqlalchemy.sql.elements import TextClause
 from chat_saude.dashboard.filters import DashboardFilters
 
 
+def _resolve_top_n(filters: DashboardFilters, default: int = 10) -> int:
+    if filters.top_n is None:
+        return default
+    try:
+        parsed = int(filters.top_n)
+    except (TypeError, ValueError):
+        return default
+    return max(1, min(parsed, 100))
+
+
 def _build_global_where(filters: DashboardFilters) -> tuple[str, dict[str, Any]]:
     clauses = ["1=1"]
     params: dict[str, Any] = {}
@@ -239,65 +249,150 @@ def chronic_filter_options_query() -> TextClause:
     )
 
 
-def bcg_coverage_2023_query() -> tuple[TextClause, dict[str, Any]]:
-    """Query for BCG administrative coverage by country in 2023."""
+def bcg_coverage_2023_query(filters: DashboardFilters) -> tuple[TextClause, dict[str, Any]]:
+    """Query for immunization administrative coverage by country for a selected year."""
+    target_year = filters.immunization_end_year or filters.immunization_start_year or 2023
+    vaccine_code = (
+        filters.vaccine_code.strip().upper()
+        if isinstance(filters.vaccine_code, str) and filters.vaccine_code.strip()
+        else None
+    )
+
+    params: dict[str, Any] = {"year": target_year}
+    vaccine_clause = ""
+    if vaccine_code:
+        vaccine_clause = "\n          AND vd.vaccine_code = :vaccine_code"
+        params["vaccine_code"] = vaccine_code
+
     statement = text(
-        """
+        f"""
         SELECT
             cd.country_name AS country,
             imf.year,
-            imf.administrative_coverage
+            AVG(imf.administrative_coverage) AS administrative_coverage
         FROM immunization_fact imf
         JOIN country_dim cd ON imf.country_id = cd.id
         JOIN vaccine_dim vd ON imf.vaccine_id = vd.id
-        WHERE vd.vaccine_code = :vaccine_code
-          AND imf.year = :year
+        WHERE imf.year = :year
           AND imf.administrative_coverage IS NOT NULL
-        ORDER BY imf.administrative_coverage DESC
+          AND imf.administrative_coverage BETWEEN 0 AND 100
+          {vaccine_clause}
+        GROUP BY cd.country_name, imf.year
+        ORDER BY administrative_coverage DESC
         """
     )
-    params = {"vaccine_code": "BCG", "year": 2023}
     return statement, params
 
 
-def bcg_trend_query() -> tuple[TextClause, dict[str, Any]]:
-    """Query for BCG coverage trend over years (average, min, max across countries)."""
+def bcg_trend_query(filters: DashboardFilters) -> tuple[TextClause, dict[str, Any]]:
+    """Query for immunization coverage trend over years (average, min, max across countries)."""
+    params: dict[str, Any] = {}
+    vaccine_code = (
+        filters.vaccine_code.strip().upper()
+        if isinstance(filters.vaccine_code, str) and filters.vaccine_code.strip()
+        else None
+    )
+    year_start = filters.immunization_start_year
+    year_end = filters.immunization_end_year
+
+    if year_start is not None and year_end is not None and year_start > year_end:
+        year_start, year_end = year_end, year_start
+
+    vaccine_clause = ""
+    if vaccine_code:
+        vaccine_clause = "\n          AND vd.vaccine_code = :vaccine_code"
+        params["vaccine_code"] = vaccine_code
+
+    year_clause = ""
+    if year_start is not None:
+        year_clause += "\n          AND imf.year >= :immunization_start_year"
+        params["immunization_start_year"] = year_start
+    if year_end is not None:
+        year_clause += "\n          AND imf.year <= :immunization_end_year"
+        params["immunization_end_year"] = year_end
+
     statement = text(
-        """
+        f"""
+        WITH country_year_coverage AS (
+            SELECT
+                imf.country_id,
+                imf.year,
+                AVG(imf.administrative_coverage) AS country_avg_coverage
+            FROM immunization_fact imf
+            JOIN vaccine_dim vd ON imf.vaccine_id = vd.id
+            WHERE imf.administrative_coverage IS NOT NULL
+              AND imf.administrative_coverage BETWEEN 0 AND 100
+              AND imf.year IS NOT NULL
+              {vaccine_clause}
+              {year_clause}
+            GROUP BY imf.country_id, imf.year
+        )
         SELECT
-            imf.year,
-            AVG(imf.administrative_coverage) AS avg_coverage,
-            MIN(imf.administrative_coverage) AS min_coverage,
-            MAX(imf.administrative_coverage) AS max_coverage,
-            COUNT(DISTINCT imf.country_id) AS countries_count
-        FROM immunization_fact imf
-        JOIN vaccine_dim vd ON imf.vaccine_id = vd.id
-        WHERE vd.vaccine_code = :vaccine_code
-          AND imf.administrative_coverage IS NOT NULL
-          AND imf.year IS NOT NULL
-        GROUP BY imf.year
-        ORDER BY imf.year ASC
+            year,
+            AVG(country_avg_coverage) AS avg_coverage,
+            MIN(country_avg_coverage) AS min_coverage,
+            MAX(country_avg_coverage) AS max_coverage,
+            COUNT(DISTINCT country_id) AS countries_count
+        FROM country_year_coverage
+        GROUP BY year
+        ORDER BY year ASC
         """
     )
-    params = {"vaccine_code": "BCG"}
     return statement, params
 
 
 # FIPS codes for US states (BRFSS state_code column)
 _BRFSS_STATE_FIPS: dict[str, int] = {
-    "Alabama": 1, "Alaska": 2, "Arizona": 4, "Arkansas": 5,
-    "California": 6, "Colorado": 8, "Connecticut": 9, "Delaware": 10,
-    "Florida": 12, "Georgia": 13, "Hawaii": 15, "Idaho": 16,
-    "Illinois": 17, "Indiana": 18, "Iowa": 19, "Kansas": 20,
-    "Kentucky": 21, "Louisiana": 22, "Maine": 23, "Maryland": 24,
-    "Massachusetts": 25, "Michigan": 26, "Minnesota": 27, "Mississippi": 28,
-    "Missouri": 29, "Montana": 30, "Nebraska": 31, "Nevada": 32,
-    "New Hampshire": 33, "New Jersey": 34, "New Mexico": 35, "New York": 36,
-    "North Carolina": 37, "North Dakota": 38, "Ohio": 39, "Oklahoma": 40,
-    "Oregon": 41, "Pennsylvania": 42, "Rhode Island": 44,
-    "South Carolina": 45, "South Dakota": 46, "Tennessee": 47,
-    "Texas": 48, "Utah": 49, "Vermont": 50, "Virginia": 51,
-    "Washington": 53, "West Virginia": 54, "Wisconsin": 55, "Wyoming": 56,
+    "Alabama": 1,
+    "Alaska": 2,
+    "Arizona": 4,
+    "Arkansas": 5,
+    "California": 6,
+    "Colorado": 8,
+    "Connecticut": 9,
+    "Delaware": 10,
+    "Florida": 12,
+    "Georgia": 13,
+    "Hawaii": 15,
+    "Idaho": 16,
+    "Illinois": 17,
+    "Indiana": 18,
+    "Iowa": 19,
+    "Kansas": 20,
+    "Kentucky": 21,
+    "Louisiana": 22,
+    "Maine": 23,
+    "Maryland": 24,
+    "Massachusetts": 25,
+    "Michigan": 26,
+    "Minnesota": 27,
+    "Mississippi": 28,
+    "Missouri": 29,
+    "Montana": 30,
+    "Nebraska": 31,
+    "Nevada": 32,
+    "New Hampshire": 33,
+    "New Jersey": 34,
+    "New Mexico": 35,
+    "New York": 36,
+    "North Carolina": 37,
+    "North Dakota": 38,
+    "Ohio": 39,
+    "Oklahoma": 40,
+    "Oregon": 41,
+    "Pennsylvania": 42,
+    "Rhode Island": 44,
+    "South Carolina": 45,
+    "South Dakota": 46,
+    "Tennessee": 47,
+    "Texas": 48,
+    "Utah": 49,
+    "Vermont": 50,
+    "Virginia": 51,
+    "Washington": 53,
+    "West Virginia": 54,
+    "Wisconsin": 55,
+    "Wyoming": 56,
 }
 
 
@@ -509,7 +604,8 @@ def cost_effectiveness_query(filters: DashboardFilters) -> tuple[TextClause, dic
 def top_conditions_by_drugs_query(
     filters: DashboardFilters,
 ) -> tuple[TextClause, dict[str, Any]]:
-    """Top 10 conditions by drug count (overview) or top drugs for a condition (zoom)."""
+    """Top N conditions by drug count (overview) or top drugs for a condition (zoom)."""
+    top_n = _resolve_top_n(filters)
     if filters.global_disease_name:
         # Zoom in: show individual drugs for the selected condition
         statement = text(
@@ -523,10 +619,10 @@ def top_conditions_by_drugs_query(
               AND drug_name IS NOT NULL
               AND no_of_reviews IS NOT NULL
             ORDER BY no_of_reviews DESC NULLS LAST
-            LIMIT 10
+            LIMIT :top_n
             """
         )
-        return statement, {"condition": f"%{filters.global_disease_name}%"}
+        return statement, {"condition": f"%{filters.global_disease_name}%", "top_n": top_n}
 
     statement = text(
         """
@@ -538,16 +634,17 @@ def top_conditions_by_drugs_query(
         WHERE medical_condition IS NOT NULL
         GROUP BY medical_condition
         ORDER BY drug_count DESC
-        LIMIT 10
+        LIMIT :top_n
         """
     )
-    return statement, {}
+    return statement, {"top_n": top_n}
 
 
 def avg_rating_by_condition_query(
     filters: DashboardFilters,
 ) -> tuple[TextClause, dict[str, Any]]:
-    """Top 10 conditions by avg rating (overview) or top-rated drugs for a condition (zoom)."""
+    """Top N conditions by avg rating (overview) or top-rated drugs for a condition (zoom)."""
+    top_n = _resolve_top_n(filters)
     if filters.global_disease_name:
         # Zoom in: individual drug ratings for the selected condition
         statement = text(
@@ -561,10 +658,10 @@ def avg_rating_by_condition_query(
               AND rating IS NOT NULL
               AND drug_name IS NOT NULL
             ORDER BY rating DESC NULLS LAST
-            LIMIT 10
+            LIMIT :top_n
             """
         )
-        return statement, {"condition": f"%{filters.global_disease_name}%"}
+        return statement, {"condition": f"%{filters.global_disease_name}%", "top_n": top_n}
 
     statement = text(
         """
@@ -578,10 +675,10 @@ def avg_rating_by_condition_query(
         GROUP BY medical_condition
         HAVING COUNT(*) >= 5
         ORDER BY avg_rating DESC
-        LIMIT 10
+        LIMIT :top_n
         """
     )
-    return statement, {}
+    return statement, {"top_n": top_n}
 
 
 def pregnancy_category_query(

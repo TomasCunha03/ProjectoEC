@@ -54,7 +54,7 @@ def render_dashboard_section(filters: DashboardFilters) -> None:
         st.subheader("📊 Health Dashboard")
         st.caption("Organized by domain: global view, immunization, risk/cost, and drug insights.")
 
-    disease_label = filters.global_disease_name or "Selected disease"
+    disease_label = filters.global_disease_name or "All diseases"
 
     try:
         data = get_dashboard_data(filters)
@@ -107,10 +107,6 @@ def render_dashboard_section(filters: DashboardFilters) -> None:
     with st.container(border=True):
         _render_in_columns(_take_modules(["mortality_globe"]), num_cols=1)
 
-    st.markdown("### 💉 Immunization")
-    with st.container(border=True):
-        _render_in_columns(_take_modules(["bcg_coverage_2023", "bcg_trend"]), num_cols=2)
-
     st.markdown("### ⚠️ Risk and Cost")
     with st.container(border=True):
         _render_in_columns(
@@ -130,6 +126,10 @@ def render_dashboard_section(filters: DashboardFilters) -> None:
             ),
             num_cols=2,
         )
+
+    st.markdown("### 💉 Immunization")
+    with st.container(border=True):
+        _render_in_columns(_take_modules(["bcg_coverage_2023", "bcg_trend"]), num_cols=2)
 
     remaining = [
         renderer for _, module_name, renderer in main_renderers if module_name not in used_modules

@@ -49,12 +49,12 @@ class DashboardDataService:
         statement, params = queries.chronic_top_locations_query(filters)
         return self._run(statement, params)
 
-    def get_bcg_coverage_2023(self) -> pd.DataFrame:
-        statement, params = queries.bcg_coverage_2023_query()
+    def get_bcg_coverage_2023(self, filters: DashboardFilters) -> pd.DataFrame:
+        statement, params = queries.bcg_coverage_2023_query(filters)
         return self._run(statement, params)
 
-    def get_bcg_trend(self) -> pd.DataFrame:
-        statement, params = queries.bcg_trend_query()
+    def get_bcg_trend(self, filters: DashboardFilters) -> pd.DataFrame:
+        statement, params = queries.bcg_trend_query(filters)
         return self._run(statement, params)
 
     def get_global_filter_options(self) -> dict[str, Any]:

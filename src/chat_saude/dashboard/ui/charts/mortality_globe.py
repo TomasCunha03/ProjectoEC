@@ -15,9 +15,10 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         st.info("No global data available for the orthographic map.")
         return
 
-    disease_label = "Selected disease"
-    if "disease_name" in global_map_df.columns and not global_map_df["disease_name"].dropna().empty:
-        disease_label = str(global_map_df["disease_name"].dropna().iloc[0])
+    selected_disease = summary.get("global_disease_name")
+    disease_label = "All diseases"
+    if isinstance(selected_disease, str) and selected_disease.strip():
+        disease_label = selected_disease.strip()
 
     st.markdown(f"**Orthographic Globe: Average mortality by country ({disease_label})**")
 

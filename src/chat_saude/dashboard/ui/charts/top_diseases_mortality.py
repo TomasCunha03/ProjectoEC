@@ -10,6 +10,8 @@ ORDER = 20
 
 def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int]) -> None:
     df = data.get("avg_rating_by_condition", pd.DataFrame())
+    top_n = int(summary.get("top_n", 10))
+    top_n = max(1, min(top_n, 100))
 
     if df.empty:
         st.info("No rating data available.")
@@ -22,9 +24,9 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
 
     condition = summary.get("global_disease_name")
     if condition:
-        st.markdown(f"**Top-Rated Drugs for {condition.title()}**")
+        st.markdown(f"**Top {top_n} Rated Drugs for {condition.title()}**")
     else:
-        st.markdown("**Top 10 Best-Rated Conditions by Drug Treatment**")
+        st.markdown(f"**Top {top_n} Best-Rated Conditions by Drug Treatment**")
 
     fig = px.bar(
         df,
