@@ -139,21 +139,42 @@ def chat_page():
         if submitted and prompt.strip():
             st.session_state.messages.append({"role": "user", "content": prompt})
 
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": "🧠 A analisar a sua pergunta..."
+            })
+                
+            st.session_state.processing = True  
+
+            st.rerun()
+
+        if (st.session_state.get("processing", False) and st.session_state.messages and st.session_state.messages[-1]["role"] == "assistant"and "🧠" in st.session_state.messages[-1]["content"]):
+            prompt = st.session_state.messages[-2]["content"]
+
             api_url = f"http://{os.getenv('API_HOST')}:{os.getenv('API_PORT')}/chat/"
+
             try:
                 r = requests.post(
-                    api_url,
-                    json={"message": prompt},
-                    timeout=600,
+                api_url,
+                json={"message": prompt},
+                timeout=600,
                 )
+
                 if r.status_code != 200:
                     response = f"API error: {r.status_code} - {r.text}"
                 else:
                     response = r.json().get("response", "No response from API.")
+
             except requests.RequestException as exc:
                 response = f"API connection error: {exc}"
 
-            st.session_state.messages.append({"role": "assistant", "content": response})
+            st.session_state.messages[-1] = {
+                "role": "assistant",
+                "content": response
+            }
+
+            st.session_state.processing = False
+
             st.rerun()
 
         if st.button("⬅ Back", use_container_width=True):
