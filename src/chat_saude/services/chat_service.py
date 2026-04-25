@@ -36,6 +36,11 @@ _DASHBOARD_IMPLICIT_RE = re.compile(
     r"|filter\s+(chronic|global|to|by)"
     r"|show\s+(chronic|global|me\s+(data\s+for|.*\s+data\s+on))"
     r"|show\s+data\s+for"
+    r"|immunization\s+(data|trend|section|filter|window)"
+    r"|filter\s+immunization"
+    r"|vaccine\s+(data|trend|filter|window|code)"
+    r"|show\s+immunization"
+    r"|BCG|DTP3|MCV1|HEPB|POL3"
     r")\b",
     re.IGNORECASE,
 )

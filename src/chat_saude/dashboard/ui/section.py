@@ -20,7 +20,7 @@ ChartEntry = tuple[int, str, ChartRenderer]
 
 
 def _discover_chart_renderers() -> dict[str, list[ChartEntry]]:
-    discovered: dict[str, list[ChartEntry]] = {"main": [], "future": []}
+    discovered: dict[str, list[ChartEntry]] = {"main": [], "chronic": [], "future": []}
     package_name = charts.__name__
 
     for module_info in pkgutil.iter_modules(charts.__path__):
@@ -75,7 +75,8 @@ def render_dashboard_section(filters: DashboardFilters) -> None:
 
     renderers_by_slot = _discover_chart_renderers()
     main_renderers = renderers_by_slot.get("main", [])
-    if not main_renderers:
+    chronic_renderers = renderers_by_slot.get("chronic", [])
+    if not main_renderers and not chronic_renderers:
         st.info("No dashboard charts available.")
         return
 
@@ -106,13 +107,32 @@ def render_dashboard_section(filters: DashboardFilters) -> None:
     st.markdown("### 🌍 Global Overview")
     with st.container(border=True):
         _render_in_columns(_take_modules(["mortality_globe"]), num_cols=1)
+        _render_in_columns(_take_modules(["global_trend"]), num_cols=1)
+
+    # ── Chronic Disease section ──────────────────────────────────────────────
+    if chronic_renderers:
+        st.markdown("### 🦠 Chronic Disease (US)")
+        chronic_kpis = st.columns(3)
+        with chronic_kpis[0]:
+            st.metric("Indicators", f"{int(summary.get('chronic_indicators_count', 0)):,}")
+        with chronic_kpis[1]:
+            st.metric("States / Locations", f"{int(summary.get('chronic_locations_count', 0))}")
+        with chronic_kpis[2]:
+            st.metric("Avg Indicator Value", f"{float(summary.get('chronic_avg_value', 0)):.1f}")
+        chronic_topic = filters.chronic_topic or "All topics"
+        chronic_loc = filters.chronic_location or "All states"
+        st.caption(f"Scope: {chronic_topic} · {chronic_loc}")
+        with st.container(border=True):
+            chronic_chart_renderers = [r for _, _, r in chronic_renderers]
+            _render_in_columns(chronic_chart_renderers, num_cols=2)
 
     st.markdown("### ⚠️ Risk and Cost")
     with st.container(border=True):
         _render_in_columns(
-            _take_modules(["risk_factor_disease_heatmap", "cost_effectiveness_scatter"]),
-            num_cols=1,
+            _take_modules(["risk_factor_disease_heatmap", "brfss_lifestyle_profile"]),
+            num_cols=2,
         )
+        _render_in_columns(_take_modules(["cost_effectiveness_scatter"]), num_cols=1)
 
     st.markdown("### 💊 Drug Insights")
     with st.container(border=True):

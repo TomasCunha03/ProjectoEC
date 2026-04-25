@@ -17,7 +17,12 @@ def get_dashboard_data(filters: DashboardFilters) -> dict[str, pd.DataFrame]:
     service = get_dashboard_service()
     return {
         "global_kpis": service.get_global_kpis(filters),
+        "global_yearly_trend": service.get_global_yearly_trend(filters),
         "global_map": service.get_global_country_mortality(filters),
+        "chronic_kpis": service.get_chronic_kpis(filters),
+        "chronic_yearly_trend": service.get_chronic_yearly_trend(filters),
+        "chronic_top_topics": service.get_chronic_top_topics(filters),
+        "chronic_top_locations": service.get_chronic_top_locations(filters),
         "bcg_coverage_2023": service.get_bcg_coverage_2023(filters),
         "bcg_trend": service.get_bcg_trend(filters),
         "risk_factor_disease": service.get_risk_factor_disease_correlation(filters),
@@ -81,5 +86,15 @@ def build_dashboard_summary(
         summary["avg_mortality_rate"] = _safe_float(row.get("avg_mortality_rate"))
         summary["avg_recovery_rate"] = _safe_float(row.get("avg_recovery_rate"))
         summary["countries_count"] = _safe_int(row.get("countries_count"))
+
+    chronic_kpi_df = data.get("chronic_kpis", pd.DataFrame())
+    summary["chronic_indicators_count"] = 0
+    summary["chronic_locations_count"] = 0
+    summary["chronic_avg_value"] = 0.0
+    if not chronic_kpi_df.empty:
+        crow = chronic_kpi_df.iloc[0]
+        summary["chronic_indicators_count"] = _safe_int(crow.get("indicators_count"))
+        summary["chronic_locations_count"] = _safe_int(crow.get("locations_count"))
+        summary["chronic_avg_value"] = _safe_float(crow.get("avg_data_value"))
 
     return summary
