@@ -87,7 +87,8 @@ class ChatService:
             )
             result = {
                 "response": reply,
-                "tool_used": ",".join(ordered_tools) if ordered_tools else "none",
+                "tools_used": ",".join(ordered_tools),
+                "tool_used": ordered_tools[0] if ordered_tools else "llm"
             }
             finalize_trace(output_payload=result)
             return result

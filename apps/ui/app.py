@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 from chat_saude.dashboard import DashboardFilters
 from chat_saude.dashboard.ui import render_dashboard_section
+import time
 
 load_dotenv()
 
@@ -111,6 +112,14 @@ def landing_page():
 
 
 # Chat Page
+def typewriter_effect(text, speed=0.01):
+    placeholder = st.empty()
+    typed = ""
+
+    for char in text:
+        typed += char
+        placeholder.markdown(typed)
+        time.sleep(speed)
 
 
 def chat_page():
@@ -120,11 +129,14 @@ def chat_page():
 
     with left_col:
         st.subheader("Chat")
+
         chat_history = st.container(height=520, border=True)
         with chat_history:
             recent_messages = st.session_state.messages[-12:]
+
             if not recent_messages:
                 st.info("Send a message to start.")
+
             for msg in recent_messages:
                 avatar = "🧑" if msg["role"] == "user" else "👨🏻‍⚕️"
                 with st.chat_message(msg["role"], avatar=avatar):
@@ -138,42 +150,59 @@ def chat_page():
 
         if submitted and prompt.strip():
             st.session_state.messages.append({"role": "user", "content": prompt})
-
             st.session_state.messages.append({
                 "role": "assistant",
-                "content": "🧠 A analisar a sua pergunta..."
+                "content": "🧠 Thinking ..."
             })
-                
-            st.session_state.processing = True  
+
+            st.session_state.phase = "thinking"
+            st.session_state.pending_prompt = prompt
 
             st.rerun()
 
-        if (st.session_state.get("processing", False) and st.session_state.messages and st.session_state.messages[-1]["role"] == "assistant"and "🧠" in st.session_state.messages[-1]["content"]):
-            prompt = st.session_state.messages[-2]["content"]
+
+        if st.session_state.get("phase") == "thinking":
+            prompt = st.session_state.pending_prompt
 
             api_url = f"http://{os.getenv('API_HOST')}:{os.getenv('API_PORT')}/chat/"
 
             try:
-                r = requests.post(
-                api_url,
-                json={"message": prompt},
-                timeout=600,
-                )
+                r = requests.post(api_url, json={"message": prompt}, timeout=600)
+                data = r.json()
 
-                if r.status_code != 200:
-                    response = f"API error: {r.status_code} - {r.text}"
-                else:
-                    response = r.json().get("response", "No response from API.")
+                response = data.get("response", "No response from API.")
+                tool = data.get("tool_used", "llm")
 
-            except requests.RequestException as exc:
-                response = f"API connection error: {exc}"
+                tool_map = {
+                    "rag_answer": "Checking documents...",
+                    "sql_query": "Checking SQL...",
+                    "mongo_query": "Checking MongoDB...",
+                    "llm": "Generating response..."
+                }
 
-            st.session_state.messages[-1] = {
-                "role": "assistant",
-                "content": response
-            }
+                status = tool_map.get(tool, "Processing ...")
 
-            st.session_state.processing = False
+            except Exception as e:
+                status = "Erro de ligação à API"
+                response = str(e)
+
+            st.session_state.messages[-1]["content"] = status
+
+            st.session_state.temp_response = response
+            st.session_state.phase = "show_status"
+
+            st.rerun()
+
+        if st.session_state.get("phase") == "show_status":
+            time.sleep(1.5)
+            st.session_state.phase = "done"
+            st.rerun()
+
+        if st.session_state.get("phase") == "done":
+            st.session_state.messages[-1]["content"] = st.session_state.temp_response
+
+            st.session_state.phase = None
+            st.session_state.pending_prompt = None
 
             st.rerun()
 
