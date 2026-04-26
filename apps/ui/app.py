@@ -195,38 +195,6 @@ def chat_page():
             api_url = f"http://{os.getenv('API_HOST')}:{os.getenv('API_PORT')}/chat/"
 
             try:
-                r = requests.post(
-                    api_url,
-                    json={"message": prompt},
-                    timeout=600,
-                )
-                if r.status_code != 200:
-                    response = f"API error: {r.status_code} - {r.text}"
-                else:
-                    resp_json = r.json()
-                    response = resp_json.get("response", "No response from API.")
-
-                    # If the API returned dashboard filters, update session state
-                    if "dashboard_filters" in resp_json:
-                        new_filters = resp_json["dashboard_filters"]
-                        if isinstance(new_filters, dict):
-                            if new_filters:
-                                # Merge new filters into existing ones
-                                current = st.session_state.get("dashboard_filters", {})
-                                if not isinstance(current, dict):
-                                    current = {}
-                                current.update(new_filters)
-                                st.session_state.dashboard_filters = current
-                            else:
-                                # Empty dict means reset all filters
-                                st.session_state.dashboard_filters = {}
-
-                            # Ensure dashboard re-queries SQL after chat-driven filter changes.
-                            clear_dashboard_cache()
-            except requests.RequestException as exc:
-                response = f"API connection error: {exc}"
-
-            st.session_state.messages.append({"role": "assistant", "content": response})
                 r = requests.post(api_url, json={"message": prompt}, timeout=600)
                 data = r.json()
 
@@ -241,6 +209,24 @@ def chat_page():
                 }
 
                 status = tool_map.get(tool, "Processing ...")
+
+                # If the API returned dashboard filters, update session state
+                if "dashboard_filters" in data:
+                    new_filters = data["dashboard_filters"]
+                    if isinstance(new_filters, dict):
+                        if new_filters:
+                            # Merge new filters into existing ones
+                            current = st.session_state.get("dashboard_filters", {})
+                            if not isinstance(current, dict):
+                                current = {}
+                            current.update(new_filters)
+                            st.session_state.dashboard_filters = current
+                        else:
+                            # Empty dict means reset all filters
+                            st.session_state.dashboard_filters = {}
+
+                        # Ensure dashboard re-queries SQL after chat-driven filter changes.
+                        clear_dashboard_cache()
 
             except Exception as e:
                 status = "Erro de ligação à API"
