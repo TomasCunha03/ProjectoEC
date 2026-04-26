@@ -88,7 +88,7 @@ class ChatService:
             result = {
                 "response": reply,
                 "tools_used": ",".join(ordered_tools),
-                "tool_used": ordered_tools[0] if ordered_tools else "llm"
+                "tool_used": ordered_tools[0] if ordered_tools else "llm",
             }
             finalize_trace(output_payload=result)
             return result

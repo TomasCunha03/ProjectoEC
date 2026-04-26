@@ -1,4 +1,5 @@
 import os
+import time
 
 import requests
 import streamlit as st
@@ -6,7 +7,6 @@ from dotenv import load_dotenv
 
 from chat_saude.dashboard import DashboardFilters
 from chat_saude.dashboard.ui import render_dashboard_section
-import time
 
 load_dotenv()
 
@@ -150,16 +150,12 @@ def chat_page():
 
         if submitted and prompt.strip():
             st.session_state.messages.append({"role": "user", "content": prompt})
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": "🧠 Thinking ..."
-            })
+            st.session_state.messages.append({"role": "assistant", "content": "🧠 Thinking ..."})
 
             st.session_state.phase = "thinking"
             st.session_state.pending_prompt = prompt
 
             st.rerun()
-
 
         if st.session_state.get("phase") == "thinking":
             prompt = st.session_state.pending_prompt
@@ -177,7 +173,7 @@ def chat_page():
                     "rag_answer": "Checking documents...",
                     "sql_query": "Checking SQL...",
                     "mongo_query": "Checking MongoDB...",
-                    "llm": "Generating response..."
+                    "llm": "Generating response...",
                 }
 
                 status = tool_map.get(tool, "Processing ...")
