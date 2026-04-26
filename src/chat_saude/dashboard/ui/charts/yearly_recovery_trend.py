@@ -37,7 +37,11 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
     df["color"] = df["pregnancy_category"].map(_CATEGORY_COLORS)
     df = df.sort_values("pregnancy_category")
 
-    st.markdown("**Drug Safety in Pregnancy (FDA Categories)**")
+    condition = summary.get("global_disease_name")
+    if condition:
+        st.markdown(f"**Drug Safety in Pregnancy — {condition.title()} Drugs (FDA Categories)**")
+    else:
+        st.markdown("**Drug Safety in Pregnancy (FDA Categories)**")
 
     fig = px.bar(
         df,

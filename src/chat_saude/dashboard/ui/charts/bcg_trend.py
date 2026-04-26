@@ -8,89 +8,67 @@ SLOT = "main"
 ORDER = 30
 
 
-@st.cache_data(ttl=300)
-def get_test_bcg_trend():
-    """Get test BCG trend data for development/testing."""
-    countries = [
-        "Afghanistan",
-        "Albania",
-        "Algeria",
-        "Angola",
-        "Argentina",
-        "Australia",
-        "Austria",
-        "Azerbaijan",
-        "Bahamas",
-        "Bangladesh",
-    ]
-
-    data = []
-    for year in range(2018, 2024):
-        for country in countries:
-            # Generate coverage with increasing trend
-            coverage = 50 + (hash(country) % 35) + (year - 2018) * 2.5
-            coverage = min(100, max(20, coverage))  # Between 20% and 100%
-            data.append(
-                {
-                    "year": year,
-                    "country": country,
-                    "administrative_coverage": coverage,
-                }
-            )
-
-    df = pd.DataFrame(data)
-    # Aggregate by year (calculate min, max, avg)
-    trend = (
-        df.groupby("year").agg({"administrative_coverage": ["mean", "min", "max"]}).reset_index()
-    )
-
-    trend.columns = ["year", "avg_coverage", "min_coverage", "max_coverage"]
-    return trend
-
-
-def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int]) -> None:
+def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, object]) -> None:
     """
-    Renders a line chart showing BCG administrative coverage trend over years.
+    Renders a line chart showing immunization administrative coverage trend over years.
 
-    Displays the evolution of average BCG coverage across all countries by year,
-    with confidence band showing min/max coverage ranges.
+    Displays the evolution of average coverage across all countries by year,
+    with confidence band showing min/max coverage ranges from SQL data.
     """
-    bcg_trend_df = data.get("bcg_trend", pd.DataFrame())
+    trend_df = data.get("bcg_trend", pd.DataFrame())
+    start_year_raw = summary.get("immunization_start_year")
+    end_year_raw = summary.get("immunization_end_year")
+    raw_vaccine_code = summary.get("vaccine_code")
+    vaccine_code = raw_vaccine_code.strip().upper() if isinstance(raw_vaccine_code, str) else ""
+    vaccine_scope = f"{vaccine_code} Vaccine" if vaccine_code else "All Vaccines"
 
-    # If empty, use test data
-    if bcg_trend_df.empty:
-        st.info(
-            "ℹ️ Using test data (database is empty). "
-            "Charts will be updated with real data after ingestion."
-        )
-        bcg_trend_df = get_test_bcg_trend()
+    start_year = int(start_year_raw) if isinstance(start_year_raw, int) else None
+    end_year = int(end_year_raw) if isinstance(end_year_raw, int) else None
+    if start_year is not None and end_year is not None and start_year > end_year:
+        start_year, end_year = end_year, start_year
 
-    if bcg_trend_df.empty:
-        st.info("No BCG trend data available.")
+    if trend_df.empty:
+        st.info("No immunization trend data available in SQL.")
         return
 
-    st.markdown("**BCG Administrative Coverage Trend**")
+    if start_year is not None and end_year is not None:
+        st.markdown(f"**{vaccine_scope} Administrative Coverage Trend ({start_year}-{end_year})**")
+    elif start_year is not None:
+        st.markdown(f"**{vaccine_scope} Administrative Coverage Trend (from {start_year})**")
+    elif end_year is not None:
+        st.markdown(f"**{vaccine_scope} Administrative Coverage Trend (up to {end_year})**")
+    else:
+        st.markdown(f"**{vaccine_scope} Administrative Coverage Trend**")
 
     # Prepare data
-    bcg_trend_df = bcg_trend_df.copy()
-    bcg_trend_df["year"] = pd.to_numeric(bcg_trend_df["year"], errors="coerce")
-    bcg_trend_df["avg_coverage"] = pd.to_numeric(bcg_trend_df["avg_coverage"], errors="coerce")
-    bcg_trend_df["min_coverage"] = pd.to_numeric(bcg_trend_df["min_coverage"], errors="coerce")
-    bcg_trend_df["max_coverage"] = pd.to_numeric(bcg_trend_df["max_coverage"], errors="coerce")
+    trend_df = trend_df.copy()
+    trend_df["year"] = pd.to_numeric(trend_df["year"], errors="coerce")
+    trend_df["avg_coverage"] = pd.to_numeric(trend_df["avg_coverage"], errors="coerce")
+    trend_df["min_coverage"] = pd.to_numeric(trend_df["min_coverage"], errors="coerce")
+    trend_df["max_coverage"] = pd.to_numeric(trend_df["max_coverage"], errors="coerce")
 
     # Remove null values
-    bcg_trend_df = bcg_trend_df.dropna(subset=["year", "avg_coverage"])
+    trend_df = trend_df.dropna(subset=["year", "avg_coverage"])
 
-    if bcg_trend_df.empty:
-        st.warning("No valid BCG trend data.")
+    if trend_df.empty:
+        st.warning("No valid immunization trend data.")
         return
 
     # Sort by year
-    bcg_trend_df = bcg_trend_df.sort_values("year")
+    trend_df = trend_df.sort_values("year")
+
+    if start_year is not None:
+        trend_df = trend_df[trend_df["year"] >= start_year]
+    if end_year is not None:
+        trend_df = trend_df[trend_df["year"] <= end_year]
+
+    if trend_df.empty:
+        st.warning("No immunization trend records for the selected year window.")
+        return
 
     # Create line chart with confidence band
     fig = px.line(
-        bcg_trend_df,
+        trend_df,
         x="year",
         y="avg_coverage",
         markers=True,
@@ -101,8 +79,8 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
 
     # Add min/max band
     fig.add_scatter(
-        x=bcg_trend_df["year"],
-        y=bcg_trend_df["max_coverage"],
+        x=trend_df["year"],
+        y=trend_df["max_coverage"],
         fill=None,
         mode="lines",
         line_color="rgba(52, 152, 219, 0)",
@@ -112,8 +90,8 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
     )
 
     fig.add_scatter(
-        x=bcg_trend_df["year"],
-        y=bcg_trend_df["min_coverage"],
+        x=trend_df["year"],
+        y=trend_df["min_coverage"],
         fill="tonexty",
         mode="lines",
         line_color="rgba(52, 152, 219, 0)",
@@ -159,8 +137,8 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
     st.plotly_chart(fig, use_container_width=True, theme="streamlit")
 
     # Statistics
-    latest_year = bcg_trend_df[bcg_trend_df["year"] == bcg_trend_df["year"].max()].iloc[0]
-    earliest_year = bcg_trend_df[bcg_trend_df["year"] == bcg_trend_df["year"].min()].iloc[0]
+    latest_year = trend_df[trend_df["year"] == trend_df["year"].max()].iloc[0]
+    earliest_year = trend_df[trend_df["year"] == trend_df["year"].min()].iloc[0]
 
     coverage_change = latest_year["avg_coverage"] - earliest_year["avg_coverage"]
     year_range = int(latest_year["year"] - earliest_year["year"])
@@ -170,6 +148,6 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
     st.caption(
         f"Years analyzed: {int(earliest_year['year'])}-{int(latest_year['year'])}"
         f" ({year_range} years) | "
-        f"Average coverage: {bcg_trend_df['avg_coverage'].mean():.1f}% | "
+        f"Average coverage: {trend_df['avg_coverage'].mean():.1f}% | "
         f"{change_indicator} Change: {coverage_change:+.1f}pp"
     )

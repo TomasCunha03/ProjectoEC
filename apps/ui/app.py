@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 from chat_saude.dashboard import DashboardFilters
 from chat_saude.dashboard.ui import render_dashboard_section
+from chat_saude.dashboard.ui.data import clear_dashboard_cache
 
 load_dotenv()
 
@@ -61,18 +62,34 @@ def get_dashboard_filters_from_chat() -> DashboardFilters:
     if not isinstance(payload, dict):
         return DashboardFilters()
 
+    normalized_payload = dict(payload)
+    # Backward compatibility with previous dashboard key names.
+    if (
+        "immunization_start_year" not in normalized_payload
+        and "bcg_start_year" in normalized_payload
+    ):
+        normalized_payload["immunization_start_year"] = normalized_payload.get("bcg_start_year")
+    if "immunization_end_year" not in normalized_payload and "bcg_end_year" in normalized_payload:
+        normalized_payload["immunization_end_year"] = normalized_payload.get("bcg_end_year")
+
     allowed_keys = {
         "global_start_year",
         "global_end_year",
         "global_country",
         "global_disease_name",
         "global_disease_category",
+        "immunization_start_year",
+        "immunization_end_year",
+        "vaccine_code",
+        "top_n",
         "chronic_start_year",
         "chronic_end_year",
         "chronic_location",
         "chronic_topic",
     }
-    filtered_payload = {k: payload.get(k) for k in allowed_keys if k in payload}
+    filtered_payload = {
+        k: normalized_payload.get(k) for k in allowed_keys if k in normalized_payload
+    }
     return DashboardFilters(**filtered_payload)
 
 
@@ -192,6 +209,24 @@ def chat_page():
                 }
 
                 status = tool_map.get(tool, "Processing ...")
+
+                # If the API returned dashboard filters, update session state
+                if "dashboard_filters" in data:
+                    new_filters = data["dashboard_filters"]
+                    if isinstance(new_filters, dict):
+                        if new_filters:
+                            # Merge new filters into existing ones
+                            current = st.session_state.get("dashboard_filters", {})
+                            if not isinstance(current, dict):
+                                current = {}
+                            current.update(new_filters)
+                            st.session_state.dashboard_filters = current
+                        else:
+                            # Empty dict means reset all filters
+                            st.session_state.dashboard_filters = {}
+
+                        # Ensure dashboard re-queries SQL after chat-driven filter changes.
+                        clear_dashboard_cache()
 
             except Exception as e:
                 status = "Erro de ligação à API"

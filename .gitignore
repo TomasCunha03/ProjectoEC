@@ -51,3 +51,6 @@ build/
 # Datasets
 data/*.csv
 
+# Claude Code local session data
+.claude/
+
