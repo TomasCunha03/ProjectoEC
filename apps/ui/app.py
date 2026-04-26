@@ -137,10 +137,25 @@ def chat_page():
             if not recent_messages:
                 st.info("Send a message to start.")
 
-            for msg in recent_messages:
+            for i, msg in enumerate(recent_messages):
                 avatar = "🧑" if msg["role"] == "user" else "👨🏻‍⚕️"
+
                 with st.chat_message(msg["role"], avatar=avatar):
-                    st.markdown(msg["content"])
+                    if (
+                        i == len(recent_messages) - 1
+                        and msg["role"] == "assistant"
+                        and st.session_state.get("phase") == "done"
+                    ):
+                        placeholder = st.empty()
+                        typed = ""
+
+                        for char in st.session_state.temp_response:
+                            typed += char
+                            placeholder.markdown(typed)
+                            time.sleep(0.02)
+
+                    else:
+                        st.markdown(msg["content"])
 
         with st.form("chat_form", clear_on_submit=True):
             prompt = st.text_input(
@@ -190,12 +205,13 @@ def chat_page():
             st.rerun()
 
         if st.session_state.get("phase") == "show_status":
-            time.sleep(1.5)
+            time.sleep(4.5)
             st.session_state.phase = "done"
             st.rerun()
 
         if st.session_state.get("phase") == "done":
-            st.session_state.messages[-1]["content"] = st.session_state.temp_response
+            response = st.session_state.temp_response
+            st.session_state.messages[-1]["content"] = response
 
             st.session_state.phase = None
             st.session_state.pending_prompt = None
