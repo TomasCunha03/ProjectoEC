@@ -18,7 +18,7 @@ reranker = CrossEncoder("BAAI/bge-reranker-base")
 chroma_client = get_chroma_client()
 collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
 
-LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:1b")
+LLM_MODEL = os.getenv("LLM_MODEL", "mistral:7b-instruct-q4_K_M")
 
 # Load rag_prompt from prompts.yaml (src/chat_saude/rag: .. -> chat_saude, .. -> src, agents)
 agents_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "agents"))

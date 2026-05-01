@@ -9,7 +9,7 @@ from chat_saude.observability.logger import get_logger
 
 logger = get_logger(__name__)
 
-LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:1b")
+LLM_MODEL = os.getenv("LLM_MODEL", "mistral:7b-instruct-q4_K_M")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 
 logger.info("Tool selection agent using model: %s", LLM_MODEL)
