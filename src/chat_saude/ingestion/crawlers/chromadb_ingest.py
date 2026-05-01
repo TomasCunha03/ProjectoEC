@@ -26,7 +26,7 @@ embbeding_model = SentenceTransformer("BAAI/bge-base-en-v1.5")
 
 # Connection to ChromaDB
 client = chromadb.HttpClient(
-    host=os.getenv("VECTOR_HOST", "db_vector"), port=int(os.getenv("VECTOR_PORT", "8002"))
+    host=os.getenv("VECTOR_HOST", "db_vector"), port=int(os.getenv("VECTOR_PORT", "8010"))
 )
 print(client.list_collections())  # List collections
 

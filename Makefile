@@ -1,8 +1,11 @@
-include .env
+-include .env
 export
 
+# Cursor (and some IDE terminals) export MAKE as the editor binary; recursive $(MAKE) must stay GNU Make.
+override MAKE := $(shell command -v gmake 2>/dev/null || command -v make 2>/dev/null || printf '%s\n' make)
+
 up:
-	docker compose up --build -d
+	docker compose up --build -d --wait
 
 down:
 	docker compose down
@@ -34,7 +37,7 @@ format:
 check-all: lint format
 
 init-env:
-	cp .env.example .env
+	@if [ ! -f .env ]; then cp .env.example .env; fi
 
 download-data:
 	python scripts/download_data.py
@@ -42,10 +45,14 @@ download-data:
 clean-all:
 	docker compose down -v --remove-orphans
 
+bootstrap:
+	$(MAKE) download-data
+	$(MAKE) up
+	$(MAKE) ingest
+	$(MAKE) pull-model
+
 setup:
-	make init-env
-	make download-data
-	make up
-	sleep 10
-	make ingest
-	make pull-model 
+	$(MAKE) init-env
+	$(MAKE) bootstrap
+
+prod: setup
