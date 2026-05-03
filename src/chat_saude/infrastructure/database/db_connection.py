@@ -45,7 +45,7 @@ def _vector_host():
 
 
 def _vector_port():
-    return int(os.getenv("VECTOR_PORT") or getattr(settings, "VECTOR_DB_PORT", "8002"))
+    return int(os.getenv("VECTOR_PORT") or getattr(settings, "VECTOR_DB_PORT", "8010"))
 
 
 # --- Health checks (used by UI) ---

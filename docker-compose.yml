@@ -14,10 +14,16 @@ services:
       - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}
       - LANGFUSE_HOST=http://langfuse:3000
     depends_on:
-      - db_sql
-      - db_nosql
-      - db_vector
-      - langfuse
+      db_sql:
+        condition: service_healthy
+      db_nosql:
+        condition: service_healthy
+      db_vector:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      langfuse:
+        condition: service_healthy
     volumes:
       - ./data:/app/data
       - ./src:/app/src
@@ -33,6 +39,12 @@ services:
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
     ports:
       - "${SQL_PORT}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   api:
     build: 
@@ -55,10 +67,16 @@ services:
       - ./src/agents:/app/src/agents
       - ./src/chat_saude:/app/src/chat_saude
     depends_on:
-      - db_sql
-      - db_nosql
-      - db_vector
-      - langfuse
+      db_sql:
+        condition: service_healthy
+      db_nosql:
+        condition: service_healthy
+      db_vector:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      langfuse:
+        condition: service_healthy
 
   db_nosql:
     image: mongo:latest
@@ -72,6 +90,25 @@ services:
       MONGO_INITDB_DATABASE: ${MONGO_DB}
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--quiet",
+          "-u",
+          "${MONGO_USER}",
+          "-p",
+          "${MONGO_PASSWORD}",
+          "--authenticationDatabase",
+          "admin",
+          "--eval",
+          "db.adminCommand('ping')",
+        ]
+      interval: 5s
+      timeout: 10s
+      retries: 12
+      start_period: 40s
 
   ollama:
     image: ollama/ollama
@@ -79,6 +116,12 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
 
   db_vector:
     image: chromadb/chroma:latest
@@ -86,8 +129,20 @@ services:
       - CHROMA_DB_PATH=${VECTOR_DB_PATH}
     volumes:
       - chroma_data:/chroma/chroma
+    # Host bind uses VECTOR_PORT (see .env); Chroma always listens on 8000 inside the container.
     ports:
       - "${VECTOR_PORT}:8000"
+    healthcheck:
+      # Slim Chroma images often omit curl/python; /api/v2/heartbeat is current API (see chromadb.dev cookbook).
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sf http://127.0.0.1:8000/api/v2/heartbeat >/dev/null 2>&1 || wget -qO- http://127.0.0.1:8000/api/v2/heartbeat >/dev/null 2>&1 || /bin/bash -c 'exec 3<>/dev/tcp/127.0.0.1/8000'",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 45s
 
   langfuse-db:
     image: postgres:16
@@ -97,6 +152,12 @@ services:
       POSTGRES_DB: langfuse
     volumes:
       - langfuse_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   redis:
     image: redis:7
@@ -112,10 +173,10 @@ services:
       retries: 10
 
   minio:
-    image: cgr.dev/chainguard/minio
+    # Official image: reliable /minio/health/live + curl for healthchecks (Chainguard "minio ready local" often fails).
+    image: minio/minio:latest
     restart: always
-    entrypoint: sh
-    command: -c "mkdir -p /data/langfuse && minio server --address ':9000' --console-address ':9001' /data"
+    command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: miniosecret
@@ -124,21 +185,37 @@ services:
     volumes:
       - langfuse_minio_data:/data
     healthcheck:
-      test: ["CMD", "minio", "ready", "local"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 15
+      start_period: 15s
 
   langfuse:
     image: langfuse/langfuse:3
     ports:
       - "3000:3000"
     depends_on:
-      - langfuse-db
-      - langfuse-worker
-      - clickhouse
-      - redis
-      - minio
+      langfuse-db:
+        condition: service_healthy
+      langfuse-worker:
+        condition: service_started
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sf http://127.0.0.1:3000/api/public/health >/dev/null 2>&1 || wget -qO- http://127.0.0.1:3000/api/public/health >/dev/null 2>&1",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 18
+      start_period: 120s
     environment:
       - DATABASE_URL=postgresql://langfuse:langfuse@langfuse-db:5432/langfuse
       # Headless initialization (recommended for local dev)
@@ -188,21 +265,36 @@ services:
     image: clickhouse/clickhouse-server:latest
     ports:
       - "8123:8123"
-      - "9000:9000"
+      # Native protocol on host 9009 avoids clashing with anything expecting localhost:9000 (MinIO API is on 9090).
+      - "9009:9000"
     environment:
       CLICKHOUSE_DB: default
       CLICKHOUSE_USER: clickhouse
       CLICKHOUSE_PASSWORD: clickhouse
     volumes:
       - langfuse_clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://127.0.0.1:8123/ping || curl -sf http://127.0.0.1:8123/ping",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   langfuse-worker:
     image: langfuse/langfuse-worker:3
     depends_on:
-      - langfuse-db
-      - redis
-      - clickhouse
-      - minio
+      langfuse-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     environment:
       - NEXTAUTH_URL=http://localhost:3000
       - DATABASE_URL=postgresql://langfuse:langfuse@langfuse-db:5432/langfuse

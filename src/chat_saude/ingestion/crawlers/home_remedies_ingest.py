@@ -20,7 +20,7 @@ CHUNK_OVERLAP = 50  # overlap between chunks
 
 embedding_model = SentenceTransformer("BAAI/bge-base-en-v1.5")
 client_chromadb = chromadb.HttpClient(
-    host=os.getenv("VECTOR_HOST", "db_vector"), port=int(os.getenv("VECTOR_PORT", "8002"))
+    host=os.getenv("VECTOR_HOST", "db_vector"), port=int(os.getenv("VECTOR_PORT", "8010"))
 )
 
 

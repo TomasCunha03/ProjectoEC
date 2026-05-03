@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # Vector DB (e.g. Chroma)
     VECTOR_DB_HOST: str = "localhost"
-    VECTOR_DB_PORT: int = 8002
+    VECTOR_DB_PORT: int = 8010
 
     # Ollama
     OLLAMA_HOST: str = "http://localhost:11434"
