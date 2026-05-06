@@ -5,11 +5,12 @@ import re
 import ollama
 import yaml
 
+from agents.router_heuristics import route_question
 from chat_saude.observability.logger import get_logger
 
 logger = get_logger(__name__)
 
-LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:1b")
+LLM_MODEL = os.getenv("LLM_MODEL", "qwen2.5:1.5b")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 
 logger.info("Tool selection agent using model: %s", LLM_MODEL)
@@ -33,7 +34,18 @@ def load_prompt(file_path="prompts.yaml", key="system_prompt") -> str:
 
 
 def select_tool(user_question: str) -> dict:
-    """Select appropriate tool based on user question."""
+    """Select appropriate tool based on user question.
+    
+    First tries heuristic patterns (deterministic, fast, reliable).
+    Falls back to LLM only if no heuristic matches.
+    """
+    # Try heuristics first
+    heuristic_result = route_question(user_question)
+    if heuristic_result is not None:
+        return {"tools": heuristic_result["tools"], "query": user_question}
+    
+    # Fallback to LLM
+    logger.info("Using LLM for tool selection: %s", user_question[:80])
     system_prompt = load_prompt("prompts.yaml", "system_prompt")
 
     messages = [

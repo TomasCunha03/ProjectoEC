@@ -10,7 +10,7 @@ from chat_saude.observability.logger import get_logger
 
 logger = get_logger(__name__)
 
-LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:1b")
+LLM_MODEL = os.getenv("LLM_MODEL", "qwen2.5:1.5b")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 
 _INT_FIELDS = frozenset(
