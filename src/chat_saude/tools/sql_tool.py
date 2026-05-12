@@ -2,14 +2,14 @@ import os
 import re
 from urllib.parse import quote_plus
 
+import torch
 import yaml
 from langchain_community.utilities import SQLDatabase
 from langchain_ollama import ChatOllama
+from sentence_transformers import SentenceTransformer, util
 
 from chat_saude.observability.langfuse_client import end_span, start_span
 from chat_saude.observability.logger import get_logger
-from sentence_transformers import SentenceTransformer, util
-import torch
 
 embedding_model = SentenceTransformer("BAAI/bge-base-en-v1.5")
 
@@ -27,6 +27,7 @@ FORBIDDEN_KEYWORDS = [
     "GRANT",
     "REVOKE",
 ]
+
 
 def get_relevant_schema(user_question: str, yaml_path: str, top_k: int = 3) -> str:
     """
@@ -46,9 +47,7 @@ def get_relevant_schema(user_question: str, yaml_path: str, top_k: int = 3) -> s
 
         columns = []
         for col in table.get("columns", []):
-            columns.append(
-                f"{col.get('name')} ({col.get('type')}): {col.get('description', '')}"
-            )
+            columns.append(f"{col.get('name')} ({col.get('type')}): {col.get('description', '')}")
 
         query_patterns = table.get("query_patterns", [])
 
@@ -59,23 +58,17 @@ def get_relevant_schema(user_question: str, yaml_path: str, top_k: int = 3) -> s
         {description}
 
         Columns:
-        {'; '.join(columns)}
+        {"; ".join(columns)}
 
         Query patterns:
-        {'; '.join(query_patterns)}
+        {"; ".join(query_patterns)}
         """
 
         table_chunks.append(chunk)
 
-    chunk_embeddings = embedding_model.encode(
-        table_chunks,
-        convert_to_tensor=True
-    )
+    chunk_embeddings = embedding_model.encode(table_chunks, convert_to_tensor=True)
 
-    query_embedding = embedding_model.encode(
-        user_question,
-        convert_to_tensor=True
-    )
+    query_embedding = embedding_model.encode(user_question, convert_to_tensor=True)
 
     scores = util.cos_sim(query_embedding, chunk_embeddings)[0]
 
@@ -197,10 +190,8 @@ def sql_query(user_question: str) -> str:
         )
         gen_template = load_prompt(prompts_path, "sql_prompt")
         data_context = get_relevant_schema(
-            user_question=user_question,
-            yaml_path=data_context_path,
-            top_k=3
-            )
+            user_question=user_question, yaml_path=data_context_path, top_k=3
+        )
 
         if not gen_template:
             msg = "Internal error: SQL generation prompt not found."

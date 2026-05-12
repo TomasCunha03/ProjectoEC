@@ -10,16 +10,13 @@ from chat_saude.observability.logger import get_logger
 
 logger = get_logger(__name__)
 
-COLLECTION_NAMES = ["pmc_medicine_preventive", "home_remedies" ]
+COLLECTION_NAMES = ["pmc_medicine_preventive", "home_remedies"]
 
 embedding_model = SentenceTransformer("BAAI/bge-base-en-v1.5")
 reranker = CrossEncoder("BAAI/bge-reranker-base")
 
 chroma_client = get_chroma_client()
-collections = [
-    chroma_client.get_or_create_collection(name=name)
-    for name in COLLECTION_NAMES
-]
+collections = [chroma_client.get_or_create_collection(name=name) for name in COLLECTION_NAMES]
 
 LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:1b")
 
@@ -79,10 +76,7 @@ def rag_answer(query: str) -> str:
     all_docs = []
 
     for collection in collections:
-        results = collection.query(
-            query_embeddings=[emb],
-            n_results=3
-        )
+        results = collection.query(query_embeddings=[emb], n_results=3)
 
         docs = results["documents"][0]
         all_docs.extend(docs)
@@ -93,12 +87,7 @@ def rag_answer(query: str) -> str:
     pairs = [(query, d) for d in all_docs]
     scores = reranker.predict(pairs)
 
-    ranked_docs = [
-        d for _, d in sorted(
-            zip(scores, all_docs),
-            reverse=True
-        )
-    ]
+    ranked_docs = [d for _, d in sorted(zip(scores, all_docs), reverse=True)]
 
     context = "\n".join(ranked_docs[:3])
 
