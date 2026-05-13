@@ -2,6 +2,7 @@ import json
 import os
 import random
 import time
+import fitz
 from datetime import datetime
 
 import requests
@@ -58,8 +59,6 @@ def crawl_medicina_preventiva(urls, keyword="medicina preventiva"):
         if not text and url.lower().endswith(".pdf"):
             pdf_file = download_pdf(url)
             if pdf_file:
-                import fitz
-
                 doc = fitz.open(pdf_file)
                 for page in doc:
                     text += page.get_text() + "\n\n"

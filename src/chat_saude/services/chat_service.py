@@ -1,5 +1,6 @@
 import re
 import time
+from collections.abc import Callable
 
 from api.rules import apply_rules
 
@@ -17,6 +18,88 @@ from chat_saude.tools.rag_tool import rag_tool
 from chat_saude.tools.sql_tool import sql_query
 
 logger = get_logger(__name__)
+
+_TOOL_DEGRADED_MESSAGE = (
+    "I couldn't complete that part of your request. "
+    "Please try rephrasing or asking again in a moment."
+)
+
+_SERVICE_FAILURE_MESSAGE = (
+    "Something went wrong while processing your message. Please try again shortly."
+)
+
+
+def _execute_ordered_tools_resilient(
+    message: str,
+    ordered_tools: list[str],
+    tool_to_fn: dict[str, Callable[[str], str]],
+    tool_to_span: dict[str, str],
+) -> tuple[dict[str, str], bool]:
+    """Run selected tools; on failure log to Langfuse and degrade without raising.
+
+    If ``sql_query`` or ``mongo_query`` fails, reuse a successful RAG answer from the
+    same request when available; otherwise invoke ``rag_tool`` once as recovery.
+
+    Returns ``(replies_by_tool, degraded)`` where ``degraded`` is True if any
+    primary tool raised (including failed recovery RAG).
+    """
+    replies_by_tool: dict[str, str] = {}
+    successful_rag: str | None = None
+    recovery_rag_called = False
+    degraded = False
+
+    for tool in ordered_tools:
+        tool_span = start_span(name=tool_to_span[tool], input_payload={"message": message})
+        try:
+            out = tool_to_fn[tool](message)
+            replies_by_tool[tool] = out
+            if tool == "rag_answer":
+                successful_rag = out
+            end_span(tool_span, output_payload={"reply": out})
+        except Exception as exc:
+            degraded = True
+            logger.exception("Tool %s failed", tool)
+            end_span(
+                tool_span,
+                output_payload={"error": str(exc)},
+                level="ERROR",
+                status_message=f"{tool}_error",
+            )
+
+            if tool == "rag_answer":
+                replies_by_tool[tool] = _TOOL_DEGRADED_MESSAGE
+                continue
+
+            if successful_rag is not None:
+                replies_by_tool[tool] = successful_rag
+                continue
+
+            if recovery_rag_called:
+                replies_by_tool[tool] = _TOOL_DEGRADED_MESSAGE
+                continue
+
+            recovery_span = start_span(
+                name="recovery_rag",
+                input_payload={"message": message, "after_tool_failure": tool},
+            )
+            recovery_rag_called = True
+            try:
+                recovered = rag_tool(message)
+                successful_rag = recovered
+                replies_by_tool[tool] = recovered
+                end_span(recovery_span, output_payload={"reply": recovered})
+            except Exception as rec_exc:
+                logger.exception("Recovery RAG failed after %s", tool)
+                end_span(
+                    recovery_span,
+                    output_payload={"error": str(rec_exc)},
+                    level="ERROR",
+                    status_message="recovery_rag_error",
+                )
+                replies_by_tool[tool] = _TOOL_DEGRADED_MESSAGE
+
+    return replies_by_tool, degraded
+
 
 # Detects explicit dashboard change requests without relying on the LLM.
 # Matches "dashboard" + action verb, OR common filter phrases that imply
@@ -141,11 +224,9 @@ class ChatService:
                 "mongo_query": mongo_query,
             }
 
-            replies_by_tool: dict[str, str] = {}
-            for tool in ordered_tools:
-                tool_span = start_span(name=tool_to_span[tool], input_payload={"message": message})
-                replies_by_tool[tool] = tool_to_fn[tool](message)
-                end_span(tool_span, output_payload={"reply": replies_by_tool[tool]})
+            replies_by_tool, tools_degraded = _execute_ordered_tools_resilient(
+                message, ordered_tools, tool_to_fn, tool_to_span
+            )
 
             if not ordered_tools:
                 reply = "Sorry, I cannot answer that question."
@@ -173,9 +254,16 @@ class ChatService:
                 "tools_used": ",".join(ordered_tools),
                 "tool_used": ordered_tools[0] if ordered_tools else "llm",
             }
+            if tools_degraded:
+                result["degraded"] = True
             finalize_trace(output_payload=result)
             return result
         except Exception as exc:
             logger.exception("Chat service failed")
             finalize_trace(output_payload={"error": str(exc), "status": "chat_service_error"})
-            raise
+            return {
+                "response": _SERVICE_FAILURE_MESSAGE,
+                "tool_used": "error",
+                "tools_used": "",
+                "degraded": True,
+            }

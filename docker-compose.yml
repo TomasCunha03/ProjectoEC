@@ -126,7 +126,8 @@ services:
   db_vector:
     image: chromadb/chroma:latest
     environment:
-      - CHROMA_DB_PATH=${VECTOR_DB_PATH}
+      # Chroma 1.x: persist_path must match the volume mount or data lives in the container layer only.
+      - CHROMA_PERSIST_PATH=/chroma/chroma
     volumes:
       - chroma_data:/chroma/chroma
     # Host bind uses VECTOR_PORT (see .env); Chroma always listens on 8000 inside the container.
