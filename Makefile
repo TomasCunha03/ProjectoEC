@@ -56,3 +56,11 @@ setup:
 	$(MAKE) bootstrap
 
 prod: setup
+
+# Validates the full infrastructure from a clean clone without requiring datasets.
+# Intended for use in GitHub Codespaces or any fresh environment.
+# Steps: copy .env → build and start all containers → pull LLM model
+prod-test:
+	$(MAKE) init-env
+	$(MAKE) up
+	$(MAKE) pull-model

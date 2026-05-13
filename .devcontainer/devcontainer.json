@@ -1,0 +1,25 @@
+{
+    "name": "ChatSaude",
+    "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+    "features": {
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {
+            "version": "latest",
+            "enableNonRootDocker": "true"
+        },
+        "ghcr.io/devcontainers/features/python:1": {
+            "version": "3.11"
+        }
+    },
+    "postCreateCommand": "sudo apt-get install -y make",
+    "forwardPorts": [8501, 8500],
+    "portsAttributes": {
+        "8501": {
+            "label": "Streamlit UI",
+            "onAutoForward": "openBrowser"
+        },
+        "8500": {
+            "label": "FastAPI"
+        }
+    },
+    "remoteUser": "vscode"
+}
