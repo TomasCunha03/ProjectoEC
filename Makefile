@@ -25,6 +25,9 @@ pull-model:
 git-stats:
 	@python scripts/git_stats.py
 
+eval:
+	PYTHONPATH=apps:src python -m api.eval
+
 lint:
 	ruff check .
 
