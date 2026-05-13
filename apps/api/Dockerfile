@@ -7,7 +7,9 @@ WORKDIR /app
 COPY requirements.txt ./requirements.txt
 
 # Instala dependências
+# Install CPU-only torch first to avoid pulling multi-GB CUDA packages
 RUN pip install --upgrade pip \
+    && pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r requirements.txt
 
 # Copia o conteúdo da API e dependências (chat_saude + agents em /app/src/agents)
