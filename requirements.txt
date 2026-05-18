@@ -21,6 +21,7 @@ lxml
 trafilatura
 tqdm
 pypdf
+openpyxl
 
 # Embeddings (ChromaDB)
 sentence-transformers

@@ -90,5 +90,15 @@ def select_tool(user_question: str) -> dict:
             seen.add(t)
             ordered_tools.append(t)
 
+    if not ordered_tools:
+        logger.warning(
+            "Tool selection returned no tools (model=%s). Raw LLM output (truncated): %r",
+            LLM_MODEL,
+            answer[:800],
+        )
+        # Small models often break JSON or return []. Domain rules already accepted the query.
+        ordered_tools = ["rag_answer"]
+        logger.info("Falling back to rag_answer after empty tool list")
+
     logger.info("Tool selection result: tools=%s query=%s", ordered_tools, user_question[:80])
     return {"tools": ordered_tools, "query": user_question}
