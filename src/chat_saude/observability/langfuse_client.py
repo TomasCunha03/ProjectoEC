@@ -1,4 +1,6 @@
 import os
+import urllib.error
+import urllib.request
 from contextvars import ContextVar
 
 
@@ -20,6 +22,27 @@ _current_parent_span: ContextVar[object | None] = ContextVar(
 
 _client = None
 _noop = _NoOpEntity()
+_resolved_host: str | None = None
+
+
+def _resolve_langfuse_host(host: str) -> str:
+    """Pick a reachable Langfuse base URL (Compose DNS vs localhost on the host)."""
+
+    base = host.rstrip("/")
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for url in (base, "http://localhost:3000", "http://127.0.0.1:3000"):
+        if url and url not in seen:
+            seen.add(url)
+            candidates.append(url)
+
+    for url in candidates:
+        try:
+            urllib.request.urlopen(f"{url}/api/public/health", timeout=2)
+            return url
+        except (urllib.error.URLError, TimeoutError, OSError):
+            continue
+    return base
 
 
 def get_langfuse():
@@ -38,7 +61,10 @@ def get_langfuse():
     try:
         from langfuse import Langfuse
 
-        _client = Langfuse(public_key=public_key, secret_key=secret_key, host=host)
+        global _resolved_host
+        if _resolved_host is None:
+            _resolved_host = _resolve_langfuse_host(host)
+        _client = Langfuse(public_key=public_key, secret_key=secret_key, host=_resolved_host)
     except Exception:
         _client = _noop
 

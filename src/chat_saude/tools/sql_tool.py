@@ -178,7 +178,7 @@ def sql_query(user_question: str) -> str:
         schema = get_slim_schema(db)
 
         llm = ChatOllama(
-            model=os.getenv("SQL_LLM_MODEL", "gemma3:1b"),
+            model=os.getenv("SQL_LLM_MODEL", "qwen2.5:1.5b"),
             base_url=os.getenv("OLLAMA_HOST", "http://ollama:11434"),
             temperature=0,
         )

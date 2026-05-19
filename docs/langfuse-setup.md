@@ -85,4 +85,10 @@ docker-compose up -d
 - If your browser can’t login or redirects unexpectedly, ensure you are using:
   - `http://localhost:3000` from the same machine that runs Docker.
 - In a multi-machine scenario, `http://localhost:3000` on one machine is not the same server as `http://localhost:3000` on another.
+- **`make eval` / Python on the host**: set `LANGFUSE_HOST=http://localhost:3000` in `.env`. The hostname `langfuse` only resolves inside the Docker network; the SDK also probes localhost automatically if the configured host is unreachable.
+- **Langfuse logs: `NoSuchBucket` / S3 upload failed**: MinIO must have a bucket named `langfuse`. The `minio-init` service creates it on `docker compose up`. If you still see this error, run:
 
+```console
+docker compose run --rm minio-init
+docker compose restart langfuse langfuse-worker
+```

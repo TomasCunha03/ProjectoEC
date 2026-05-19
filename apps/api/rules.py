@@ -91,30 +91,116 @@ NON_MEDICAL_EXAMPLES = [
     "best movie of 2024",
     "football result",
     "concert tickets",
+    "who won the champions league",
+    "nba finals score",
+    "recommend a tv series",
+    "best netflix shows",
+    "video game release date",
+    "how to beat this level",
+    "minecraft crafting recipe",
+    "taylor swift new album",
+    "grammy winners this year",
+    "ticket prices for the concert",
     # Daily Life & Food
     "chocolate cake recipe",
     "restaurants in Lisbon",
     "how to tie a tie",
+    "pasta recipe without eggs",
+    "best pizza near me",
+    "how to make coffee",
+    "vegetarian dinner ideas",
+    "meal prep for the week",
+    "how long to boil eggs",
+    "wine pairing for steak",
     # Tech & History
     "how to code in python",
     "who discovered america",
     "fix my computer screen",
+    "install linux on my laptop",
+    "javascript vs typescript",
+    "best programming language to learn",
+    "how does blockchain work",
+    "reset my wifi router",
+    "iphone vs android",
+    "world war 2 timeline",
+    "ancient egypt pyramids",
+    "who was napoleon",
     # Finance & News
     "how to invest in stocks",
     "bitcoin price",
     "who is the president",
+    "mortgage interest rates",
+    "open a savings account",
+    "credit card rewards",
+    "tax deadline this year",
+    "unemployment rate in portugal",
+    "latest election results",
+    "stock market news today",
     # Travel & Weather
     "what is the weather like tomorrow",
     "book a flight to London",
     "best hotels in Paris",
+    "visa requirements for japan",
+    "cheap flights to brazil",
+    "things to do in rome",
+    "public transport in berlin",
+    "rent a car in spain",
+    "beach vacation ideas",
+    "snow forecast this weekend",
     # Home Repair & Shopping
     "how to fix a leaking pipe",
     "best places to buy cheap clothes",
     "car engine won't start",
-    # AI/Creative Requests (To block it from acting like ChatGPT)
+    "paint a bedroom wall",
+    "unclog the sink",
+    "lawn mower won't start",
+    "black friday deals",
+    "amazon return policy",
+    "best laptop under 1000 euros",
+    "compare phone plans",
+    # Work, school & career
+    "write my resume",
+    "job interview tips",
+    "salary negotiation advice",
+    "how to ask for a raise",
+    "cover letter template",
+    "solve this math equation",
+    "homework help algebra",
+    "chemistry lab report format",
+    "study tips for exams",
+    "university application deadline",
+    # AI/Creative Requests (block general-purpose assistant use)
     "can you write a poem about stars",
     "translate this sentence to spanish",
     "write an email to my boss",
+    "summarize this article",
+    "proofread my essay",
+    "generate a logo idea",
+    "write python code for me",
+    "brainstorm startup names",
+    "create a marketing slogan",
+    "roleplay as a pirate",
+    # Lifestyle, hobbies & misc
+    "best dog breeds for apartments",
+    "how to train a puppy",
+    "gardening tips for tomatoes",
+    "yoga vs pilates for beginners",
+    "learn guitar chords",
+    "photography settings for sunset",
+    "fashion trends this season",
+    "horoscope for today",
+    "tell me a joke",
+    "riddle for kids",
+    "lottery winning numbers",
+    "dating app profile tips",
+    "wedding planning checklist",
+    "legal advice for tenants",
+    "how to file taxes in portugal",
+    "car insurance comparison",
+    "learn french fast",
+    "best books to read",
+    "podcast recommendations",
+    "social media marketing strategy",
 ]
 
 # --- 2. PRE-COMPUTING EMBEDTINGS ---
@@ -133,14 +219,6 @@ medical_embeddings = model.encode(MEDICAL_EXAMPLES)
 non_medical_embeddings = model.encode(NON_MEDICAL_EXAMPLES)
 
 # --- 3. RULE ENGINE ---
-
-
-def validate_query(query: str):
-    if not query or len(query.strip()) < 3:
-        logger.warning("Query rejected (too short): %r", query)
-        return "Please enter a valid question."
-        return "Please enter a valid question with more detail."
-    return None
 
 
 def check_emergency(query: str, threshold: float = 0.60):
@@ -187,7 +265,7 @@ def check_domain(query: str):
     )
 
     # Case A: The query is completely unrelated to anything the model knows
-    if medical_score < 0.25 and non_medical_score < 0.25:
+    if medical_score < 0.15 and non_medical_score < 0.15:
         logger.warning("Query rejected (completely unrelated): %r", query)
         return "I'm not quite sure what you're asking. Could you rephrase your question?"
 
@@ -206,25 +284,20 @@ def check_domain(query: str):
 
 def apply_rules(query: str):
 
-    # 1. Basic Validation
-    result = validate_query(query)
-    if result:
-        return result
-
-    # 2. EMERGENCY OVERRIDE
+    # 1. EMERGENCY OVERRIDE
     result = check_emergency(query)
     if result:
         return result
 
-    # 3. Identity and FAQ
+    # 2. Identity and FAQ
     result = check_faq(query)
     if result:
         return result
 
-    # 4. Domain Restriction
+    # 3. Domain Restriction
     result = check_domain(query)
     if result:
         return result
 
-    # 5. Success! The query is valid, medical, and safe to process with LLM.
+    # 4. Success! The query is valid, medical, and safe to process with LLM.
     return None

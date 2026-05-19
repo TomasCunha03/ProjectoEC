@@ -3,7 +3,7 @@
 Run this to manually test the agent with your own questions.
 """
 
-from tool_selection_agent import select_tool
+from agents.tool_selection_agent import select_tool
 
 
 def main():
