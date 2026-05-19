@@ -14,9 +14,7 @@ class _NoOpEntity:
 
 
 _current_trace: ContextVar[object | None] = ContextVar("current_langfuse_trace", default=None)
-_current_parent_span: ContextVar[object | None] = ContextVar(
-    "current_langfuse_parent_span", default=None
-)
+_current_parent_span: ContextVar[object | None] = ContextVar("current_langfuse_parent_span", default=None)
 
 _client = None
 _noop = _NoOpEntity()
@@ -83,9 +81,7 @@ def start_span(name: str, input_payload: object = None):
     return span
 
 
-def end_span(
-    span, output_payload: object = None, level: str | None = None, status_message: str | None = None
-):
+def end_span(span, output_payload: object = None, level: str | None = None, status_message: str | None = None):
     try:
         update_kwargs: dict = {}
         if output_payload is not None:

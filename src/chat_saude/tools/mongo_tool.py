@@ -128,8 +128,7 @@ def _build_context(action: str, plan: dict, db) -> str:
         summary = re.sub(r"<[^>]+>", " ", result.get("full_summary", ""))
         summary = re.sub(r"\s+", " ", summary).strip()
         lines = [
-            f"**{result.get('title', result.get('disease_name', keyword))}**"
-            " (Source: MedlinePlus/NIH)",
+            f"**{result.get('title', result.get('disease_name', keyword))}** (Source: MedlinePlus/NIH)",
             "",
             summary,
         ]

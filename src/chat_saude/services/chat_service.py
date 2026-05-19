@@ -95,9 +95,7 @@ class ChatService:
                 finalize_trace(output_payload=result)
                 return result
 
-            tool_selection_span = start_span(
-                name="tool_selection", input_payload={"message": message}
-            )
+            tool_selection_span = start_span(name="tool_selection", input_payload={"message": message})
             decision = select_tool(message)
             end_span(tool_selection_span, output_payload={"decision": decision})
 
@@ -126,9 +124,7 @@ class ChatService:
                 finalize_trace(output_payload=result)
                 return result
 
-            ordered_tools = [
-                t for t in ["rag_answer", "sql_query", "mongo_query"] if t in selected_tools
-            ]
+            ordered_tools = [t for t in ["rag_answer", "sql_query", "mongo_query"] if t in selected_tools]
 
             tool_to_span = {
                 "rag_answer": "rag",

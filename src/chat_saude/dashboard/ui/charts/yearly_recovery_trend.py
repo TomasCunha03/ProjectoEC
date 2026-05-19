@@ -61,7 +61,4 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         yaxis={"tickfont": {"color": "#e6e6e6"}, "gridcolor": "rgba(255,255,255,0.1)"},
     )
     st.plotly_chart(fig, use_container_width=True, theme="streamlit")
-    st.caption(
-        "FDA pregnancy safety categories: A (safest) → X (contraindicated). "
-        "Category N (not classified) excluded."
-    )
+    st.caption("FDA pregnancy safety categories: A (safest) → X (contraindicated). Category N (not classified) excluded.")

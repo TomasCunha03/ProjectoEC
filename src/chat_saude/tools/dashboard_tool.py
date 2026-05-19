@@ -112,9 +112,7 @@ _RESET_RE = re.compile(r"\b(reset|clear)\b", re.IGNORECASE)
 _YEAR_RANGE_RE = re.compile(r"\b(\d{4})\s*(?:[-–]|to|a)\s*(\d{4})\b", re.IGNORECASE)
 _SINGLE_YEAR_RE = re.compile(r"\b(from|since|after|year|de|desde|ano)\s+(\d{4})\b", re.IGNORECASE)
 _TOP_N_RE = re.compile(r"\btop\s+(\d{1,3})\b", re.IGNORECASE)
-_IMMUNIZATION_RE = re.compile(
-    r"\b(bcg|vaccine|vaccination|immunization|vacina|imuniza)\b", re.IGNORECASE
-)
+_IMMUNIZATION_RE = re.compile(r"\b(bcg|vaccine|vaccination|immunization|vacina|imuniza)\b", re.IGNORECASE)
 _VACCINE_CODE_INLINE_RE = re.compile(
     r"\b(BCG|DTP1|DTP3|MCV1|MCV2|POL3|HEPB3|HIB3|PCV3|ROTAC|RCV1|YFV)\b",
     re.IGNORECASE,
@@ -345,9 +343,7 @@ def _regex_fallback(message: str) -> dict:
         if vaccine_code:
             result["vaccine_code"] = vaccine_code
 
-    is_immunization_request = bool(
-        _IMMUNIZATION_RE.search(message) or vaccine_code or wants_all_vaccines
-    )
+    is_immunization_request = bool(_IMMUNIZATION_RE.search(message) or vaccine_code or wants_all_vaccines)
 
     # Year range: "2015-2020", "2010 to 2022"
     year_match = _YEAR_RANGE_RE.search(message)

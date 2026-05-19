@@ -57,7 +57,4 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         coloraxis_showscale=False,
     )
     st.plotly_chart(fig, use_container_width=True, theme="streamlit")
-    st.caption(
-        "Average user rating of drug treatments per condition (min. 5 drugs). "
-        "Higher = better-rated treatments."
-    )
+    st.caption("Average user rating of drug treatments per condition (min. 5 drugs). Higher = better-rated treatments.")

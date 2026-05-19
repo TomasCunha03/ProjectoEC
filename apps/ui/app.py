@@ -20,6 +20,7 @@ def _html(s: str) -> str:
     """Cap all leading whitespace at 3 spaces so Markdown never treats lines as code blocks."""
     return re.sub(r"^ +", lambda m: " " * min(len(m.group(0)), 3), s, flags=re.MULTILINE)
 
+
 if "page" not in st.session_state:
     st.session_state.page = "landing"
 
@@ -30,6 +31,7 @@ if "messages" not in st.session_state:
 # ─────────────────────────────────────────────────────────────────────────────
 # CHAT PAGE LAYOUT (overflow hidden, fixed height)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def apply_layout_styles():
     st.markdown(
@@ -946,6 +948,7 @@ def _footer_html():
 # LANDING PAGE — render
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def landing_page():
     st.markdown(_html(_LANDING_CSS), unsafe_allow_html=True)
     st.markdown(_html(_NAVBAR), unsafe_allow_html=True)
@@ -998,6 +1001,7 @@ def landing_page():
 # DASHBOARD HELPER
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @st.cache_data(show_spinner=False)
 def load_landing_image(path: str) -> bytes:
     with open(path, "rb") as file:
@@ -1010,10 +1014,7 @@ def get_dashboard_filters_from_chat() -> DashboardFilters:
         return DashboardFilters()
 
     normalized_payload = dict(payload)
-    if (
-        "immunization_start_year" not in normalized_payload
-        and "bcg_start_year" in normalized_payload
-    ):
+    if "immunization_start_year" not in normalized_payload and "bcg_start_year" in normalized_payload:
         normalized_payload["immunization_start_year"] = normalized_payload.get("bcg_start_year")
     if "immunization_end_year" not in normalized_payload and "bcg_end_year" in normalized_payload:
         normalized_payload["immunization_end_year"] = normalized_payload.get("bcg_end_year")
@@ -1033,15 +1034,14 @@ def get_dashboard_filters_from_chat() -> DashboardFilters:
         "chronic_location",
         "chronic_topic",
     }
-    filtered_payload = {
-        k: normalized_payload.get(k) for k in allowed_keys if k in normalized_payload
-    }
+    filtered_payload = {k: normalized_payload.get(k) for k in allowed_keys if k in normalized_payload}
     return DashboardFilters(**filtered_payload)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CHAT PAGE
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def typewriter_effect(text, speed=0.01):
     placeholder = st.empty()
@@ -1072,11 +1072,7 @@ def chat_page():
                 avatar = "🧑" if msg["role"] == "user" else "👨🏻‍⚕️"
 
                 with st.chat_message(msg["role"], avatar=avatar):
-                    if (
-                        i == len(recent_messages) - 1
-                        and msg["role"] == "assistant"
-                        and st.session_state.get("phase") == "done"
-                    ):
+                    if i == len(recent_messages) - 1 and msg["role"] == "assistant" and st.session_state.get("phase") == "done":
                         placeholder = st.empty()
                         typed = ""
 
@@ -1089,9 +1085,7 @@ def chat_page():
                         st.markdown(msg["content"])
 
         with st.form("chat_form", clear_on_submit=True):
-            prompt = st.text_input(
-                "Message", placeholder="Type here...", label_visibility="collapsed"
-            )
+            prompt = st.text_input("Message", placeholder="Type here...", label_visibility="collapsed")
             submitted = st.form_submit_button("Send", use_container_width=True)
 
         if submitted and prompt.strip():

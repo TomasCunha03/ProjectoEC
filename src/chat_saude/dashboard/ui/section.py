@@ -151,9 +151,7 @@ def render_dashboard_section(filters: DashboardFilters) -> None:
     with st.container(border=True):
         _render_in_columns(_take_modules(["bcg_coverage_2023", "bcg_trend"]), num_cols=2)
 
-    remaining = [
-        renderer for _, module_name, renderer in main_renderers if module_name not in used_modules
-    ]
+    remaining = [renderer for _, module_name, renderer in main_renderers if module_name not in used_modules]
     if remaining:
         st.markdown("### ➕ Additional Charts")
         with st.container(border=True):

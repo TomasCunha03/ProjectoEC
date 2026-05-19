@@ -48,10 +48,7 @@ def fetch_disease_names() -> list[str]:
         cur.execute("SELECT name FROM diseases ORDER BY name")
     else:
         print("[INFO] Table 'diseases' is empty; using 'drugs_side_effects.medical_condition'")
-        cur.execute(
-            "SELECT DISTINCT medical_condition FROM drugs_side_effects WHERE medical_condition"
-            " IS NOT NULL ORDER BY medical_condition"
-        )
+        cur.execute("SELECT DISTINCT medical_condition FROM drugs_side_effects WHERE medical_condition IS NOT NULL ORDER BY medical_condition")
 
     rows = cur.fetchall()
     cur.close()

@@ -67,15 +67,11 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         if total == 0:
             continue
 
-        positive = cat_df[cat_df["risk_factor"].isin(_POSITIVE_RISK_FACTORS)][
-            "total_respondents"
-        ].sum()
+        positive = cat_df[cat_df["risk_factor"].isin(_POSITIVE_RISK_FACTORS)]["total_respondents"].sum()
 
         # BMI: count Overweight + Obese
         if category == "BMI Category":
-            positive = cat_df[cat_df["risk_factor"].isin({"Overweight", "Obese"})][
-                "total_respondents"
-            ].sum()
+            positive = cat_df[cat_df["risk_factor"].isin({"Overweight", "Obese"})]["total_respondents"].sum()
 
         rate = round(positive / total * 100, 1)
         rates.append(
@@ -122,7 +118,4 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         yaxis=dict(tickfont=dict(color="#e6e6e6")),
     )
     st.plotly_chart(fig, use_container_width=True, theme="streamlit")
-    st.caption(
-        "Shows the proportion of BRFSS survey respondents with each modifiable risk factor. "
-        "Filter by US state via chat or the heatmap selector above."
-    )
+    st.caption("Shows the proportion of BRFSS survey respondents with each modifiable risk factor. Filter by US state via chat or the heatmap selector above.")

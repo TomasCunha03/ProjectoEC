@@ -128,17 +128,13 @@ def sql_query(user_question: str) -> str:
 
         base_dir = os.path.dirname(__file__)
         prompts_path = os.path.abspath(os.path.join(base_dir, "..", "..", "agents", "prompts.yaml"))
-        data_context_path = os.path.abspath(
-            os.path.join(base_dir, "..", "..", "agents", "sql_schema.yaml")
-        )
+        data_context_path = os.path.abspath(os.path.join(base_dir, "..", "..", "agents", "sql_schema.yaml"))
         gen_template = load_prompt(prompts_path, "sql_prompt")
         data_context = load_sql_data_context(data_context_path)
 
         if not gen_template:
             msg = "Internal error: SQL generation prompt not found."
-            end_span(
-                span, output_payload={"error": msg}, level="ERROR", status_message="prompt_missing"
-            )
+            end_span(span, output_payload={"error": msg}, level="ERROR", status_message="prompt_missing")
             return msg
 
         prompt_sql = gen_template.format(
@@ -190,9 +186,7 @@ def sql_query(user_question: str) -> str:
             end_span(span, output_payload={"generated_sql": generated_sql, "result": result})
             return msg
 
-        explain_prompt = exp_template.format(
-            user_question=user_question, generated_sql=generated_sql, result=result
-        )
+        explain_prompt = exp_template.format(user_question=user_question, generated_sql=generated_sql, result=result)
 
         final = llm.invoke(explain_prompt)
         final_text = final.content if hasattr(final, "content") else str(final)

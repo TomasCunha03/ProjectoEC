@@ -41,9 +41,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         return
 
     # Create label combining disease and country
-    cost_df["label"] = (
-        cost_df["disease_name"].astype(str) + " (" + cost_df["country"].astype(str) + ")"
-    )
+    cost_df["label"] = cost_df["disease_name"].astype(str) + " (" + cost_df["country"].astype(str) + ")"
 
     disease_options = sorted(cost_df["disease_name"].dropna().astype(str).unique().tolist())
     selected_diseases = st.multiselect(
@@ -115,9 +113,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
             st.metric("Avg Recovery per $1k", f"{avg_efficiency:.4f}")
 
         st.markdown("**Top Cost-Effective Interventions (Best Recovery per Dollar):**")
-        top_efficient = cost_df.nlargest(5, "recovery_per_1k_usd")[
-            ["disease_name", "country", "avg_cost_usd", "avg_recovery_rate", "recovery_per_1k_usd"]
-        ].copy()
+        top_efficient = cost_df.nlargest(5, "recovery_per_1k_usd")[["disease_name", "country", "avg_cost_usd", "avg_recovery_rate", "recovery_per_1k_usd"]].copy()
         top_efficient.columns = [
             "Disease",
             "Country",
@@ -132,9 +128,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         )
 
         st.markdown("**Most Expensive Interventions:**")
-        expensive = cost_df.nlargest(5, "avg_cost_usd")[
-            ["disease_name", "country", "avg_cost_usd", "avg_recovery_rate"]
-        ].copy()
+        expensive = cost_df.nlargest(5, "avg_cost_usd")[["disease_name", "country", "avg_cost_usd", "avg_recovery_rate"]].copy()
         expensive.columns = ["Disease", "Country", "Avg Cost ($)", "Recovery Rate (%)"]
         st.dataframe(
             expensive,
