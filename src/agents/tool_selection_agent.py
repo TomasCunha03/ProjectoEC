@@ -14,6 +14,76 @@ OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 
 logger.info("Tool selection agent using model: %s", LLM_MODEL)
 
+TOOL_MAP = {
+    "RAG": "rag_answer",
+    "SQL": "sql_query",
+    "MONGO": "mongo_query",
+    "DASHBOARD": "dashboard_query",
+}
+
+
+def _map_tool_name(raw: str) -> str | None:
+    key = raw.strip().upper()
+    return TOOL_MAP.get(key)
+
+
+def _consume_tool_value(value, out: list[str]) -> None:
+    """Recursively collect tool names from strings, lists, or tool/tools dict keys."""
+    if isinstance(value, str):
+        mapped = _map_tool_name(value)
+        if mapped:
+            out.append(mapped)
+        return
+    if isinstance(value, list):
+        for item in value:
+            _consume_tool_value(item, out)
+        return
+    if isinstance(value, dict):
+        for key, val in value.items():
+            if not isinstance(key, str):
+                continue
+            if key.strip().lower() in ("tool", "tools", "name"):
+                _consume_tool_value(val, out)
+
+
+def extract_selected_tools(parsed) -> list[str]:
+    """Normalize LLM JSON into internal tool names (deduplicated, order preserved)."""
+    if parsed is None:
+        return []
+
+    raw_names: list[str] = []
+    _consume_tool_value(parsed, raw_names)
+
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for name in raw_names:
+        if name not in seen:
+            seen.add(name)
+            ordered.append(name)
+    return ordered
+
+
+def parse_tool_selection_response(answer: str):
+    """Parse JSON from LLM output; tolerate markdown fences and embedded blobs."""
+    text = answer.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*```$", "", text).strip()
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    for pattern in (r"\{.*\}", r"\[.*\]"):
+        match = re.search(pattern, text, flags=re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group(0))
+            except json.JSONDecodeError:
+                continue
+    return None
+
 
 def load_prompt(file_path="prompts.yaml", key="system_prompt") -> str:
     """Load the YAML file and extract the prompt for the given key."""
@@ -46,49 +116,11 @@ def select_tool(user_question: str) -> dict:
     response = client.chat(model=LLM_MODEL, messages=messages, options={"temperature": 0.0})
     answer = response["message"]["content"].strip()
 
-    # Parse response as JSON: { "tools": ["RAG", "SQL", ...] }
-    parsed = None
-    try:
-        parsed = json.loads(answer)
-    except Exception:
-        match = re.search(r"\{.*\}", answer, flags=re.DOTALL)
-        if match:
-            try:
-                parsed = json.loads(match.group(0))
-            except Exception:
-                logger.warning("Tool selection: failed to parse LLM response: %s", answer[:200])
-                parsed = None
+    parsed = parse_tool_selection_response(answer)
+    if parsed is None:
+        logger.warning("Tool selection: failed to parse LLM response: %s", answer[:200])
 
-    tool_map = {
-        "RAG": "rag_answer",
-        "SQL": "sql_query",
-        "MONGO": "mongo_query",
-        "DASHBOARD": "dashboard_query",
-    }
-
-    selected_tools: list[str] = []
-    tools_list = None
-    if isinstance(parsed, dict):
-        for k, v in parsed.items():
-            if isinstance(k, str) and k.strip().lower() == "tools":
-                tools_list = v
-                break
-
-    if isinstance(tools_list, list):
-        for t in tools_list:
-            if not isinstance(t, str):
-                continue
-            key = t.strip().upper()
-            if key in tool_map:
-                selected_tools.append(tool_map[key])
-
-    # De-duplicate while preserving order
-    seen = set()
-    ordered_tools: list[str] = []
-    for t in selected_tools:
-        if t not in seen:
-            seen.add(t)
-            ordered_tools.append(t)
+    ordered_tools = extract_selected_tools(parsed)
 
     if not ordered_tools:
         logger.warning(

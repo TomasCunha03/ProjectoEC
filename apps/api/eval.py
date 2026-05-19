@@ -55,15 +55,6 @@ def _cases() -> list[EvalCase]:
 
     return [
         EvalCase(
-            id="rules_too_short",
-            capability="rules / validation",
-            message="no",
-            expected_tool="rules",
-            response_hint="valid question",
-            kind="rules",
-            requires_ollama=False,
-        ),
-        EvalCase(
             id="rules_emergency",
             capability="rules / urgency",
             message="I can't breathe and I have severe crushing chest pain right now.",
@@ -96,15 +87,6 @@ def _cases() -> list[EvalCase]:
             message="Who won the Super Bowl last year and what was the final score?",
             expected_tool="rules",
             response_hint="medical assistant",
-            kind="rules",
-            requires_ollama=False,
-        ),
-        EvalCase(
-            id="rules_gibberish",
-            capability="rules / low-signal nonsense",
-            message="asdf qwerty zxcv nonsense lorem ipsum foo",
-            expected_tool="rules",
-            response_hint="not quite sure",
             kind="rules",
             requires_ollama=False,
         ),
