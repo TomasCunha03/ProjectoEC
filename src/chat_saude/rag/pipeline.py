@@ -105,7 +105,7 @@ def rag_answer(query: str) -> str:
 
     # rerank
     pairs = [(query, d) for d in all_docs]
-    scores = reranker.predict(pairs)
+    scores = _get_reranker().predict(pairs)
 
     ranked_docs = [d for _, d in sorted(zip(scores, all_docs), reverse=True)]
 
