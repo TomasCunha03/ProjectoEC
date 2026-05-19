@@ -31,22 +31,16 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, object]) -> N
         st.info(f"No immunization coverage data available in SQL for {year_label}.")
         return
 
-    st.markdown(
-        f"**{vaccine_scope} Administrative Coverage by Country ({year_label}) - Top {top_n}**"
-    )
+    st.markdown(f"**{vaccine_scope} Administrative Coverage by Country ({year_label}) - Top {top_n}**")
 
     # Prepare data
     coverage_df = coverage_df.copy()
     input_rows = len(coverage_df)
-    coverage_df["administrative_coverage"] = pd.to_numeric(
-        coverage_df["administrative_coverage"], errors="coerce"
-    )
+    coverage_df["administrative_coverage"] = pd.to_numeric(coverage_df["administrative_coverage"], errors="coerce")
 
     # Remove null values
     coverage_df = coverage_df.dropna(subset=["administrative_coverage", "country"])
-    coverage_df = coverage_df[
-        coverage_df["administrative_coverage"].between(0, 100, inclusive="both")
-    ]
+    coverage_df = coverage_df[coverage_df["administrative_coverage"].between(0, 100, inclusive="both")]
     invalid_rows = input_rows - len(coverage_df)
 
     if coverage_df.empty:
@@ -119,6 +113,4 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, object]) -> N
         f"🟢 High coverage (≥85%): {coverage_stats['high_coverage_count']}"
     )
     if invalid_rows > 0:
-        st.caption(
-            f"Data quality note: {invalid_rows} records outside 0-100% (or invalid) were excluded."
-        )
+        st.caption(f"Data quality note: {invalid_rows} records outside 0-100% (or invalid) were excluded.")

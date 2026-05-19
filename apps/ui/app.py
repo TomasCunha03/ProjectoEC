@@ -64,10 +64,7 @@ def get_dashboard_filters_from_chat() -> DashboardFilters:
 
     normalized_payload = dict(payload)
     # Backward compatibility with previous dashboard key names.
-    if (
-        "immunization_start_year" not in normalized_payload
-        and "bcg_start_year" in normalized_payload
-    ):
+    if "immunization_start_year" not in normalized_payload and "bcg_start_year" in normalized_payload:
         normalized_payload["immunization_start_year"] = normalized_payload.get("bcg_start_year")
     if "immunization_end_year" not in normalized_payload and "bcg_end_year" in normalized_payload:
         normalized_payload["immunization_end_year"] = normalized_payload.get("bcg_end_year")
@@ -87,9 +84,7 @@ def get_dashboard_filters_from_chat() -> DashboardFilters:
         "chronic_location",
         "chronic_topic",
     }
-    filtered_payload = {
-        k: normalized_payload.get(k) for k in allowed_keys if k in normalized_payload
-    }
+    filtered_payload = {k: normalized_payload.get(k) for k in allowed_keys if k in normalized_payload}
     return DashboardFilters(**filtered_payload)
 
 
@@ -158,11 +153,7 @@ def chat_page():
                 avatar = "🧑" if msg["role"] == "user" else "👨🏻‍⚕️"
 
                 with st.chat_message(msg["role"], avatar=avatar):
-                    if (
-                        i == len(recent_messages) - 1
-                        and msg["role"] == "assistant"
-                        and st.session_state.get("phase") == "done"
-                    ):
+                    if i == len(recent_messages) - 1 and msg["role"] == "assistant" and st.session_state.get("phase") == "done":
                         placeholder = st.empty()
                         typed = ""
 
@@ -175,9 +166,7 @@ def chat_page():
                         st.markdown(msg["content"])
 
         with st.form("chat_form", clear_on_submit=True):
-            prompt = st.text_input(
-                "Message", placeholder="Type here...", label_visibility="collapsed"
-            )
+            prompt = st.text_input("Message", placeholder="Type here...", label_visibility="collapsed")
             submitted = st.form_submit_button("Send", use_container_width=True)
 
         if submitted and prompt.strip():

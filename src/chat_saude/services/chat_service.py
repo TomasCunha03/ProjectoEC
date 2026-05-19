@@ -19,14 +19,9 @@ from chat_saude.tools.sql_tool import sql_query
 
 logger = get_logger(__name__)
 
-_TOOL_DEGRADED_MESSAGE = (
-    "I couldn't complete that part of your request. "
-    "Please try rephrasing or asking again in a moment."
-)
+_TOOL_DEGRADED_MESSAGE = "I couldn't complete that part of your request. Please try rephrasing or asking again in a moment."
 
-_SERVICE_FAILURE_MESSAGE = (
-    "Something went wrong while processing your message. Please try again shortly."
-)
+_SERVICE_FAILURE_MESSAGE = "Something went wrong while processing your message. Please try again shortly."
 
 
 def _execute_ordered_tools_resilient(
@@ -178,9 +173,7 @@ class ChatService:
                 finalize_trace(output_payload=result)
                 return result
 
-            tool_selection_span = start_span(
-                name="tool_selection", input_payload={"message": message}
-            )
+            tool_selection_span = start_span(name="tool_selection", input_payload={"message": message})
             decision = select_tool(message)
             end_span(tool_selection_span, output_payload={"decision": decision})
 
@@ -209,9 +202,7 @@ class ChatService:
                 finalize_trace(output_payload=result)
                 return result
 
-            ordered_tools = [
-                t for t in ["rag_answer", "sql_query", "mongo_query"] if t in selected_tools
-            ]
+            ordered_tools = [t for t in ["rag_answer", "sql_query", "mongo_query"] if t in selected_tools]
 
             tool_to_span = {
                 "rag_answer": "rag",
@@ -224,9 +215,7 @@ class ChatService:
                 "mongo_query": mongo_query,
             }
 
-            replies_by_tool, tools_degraded = _execute_ordered_tools_resilient(
-                message, ordered_tools, tool_to_fn, tool_to_span
-            )
+            replies_by_tool, tools_degraded = _execute_ordered_tools_resilient(message, ordered_tools, tool_to_fn, tool_to_span)
 
             if not ordered_tools:
                 reply = "Sorry, I cannot answer that question."

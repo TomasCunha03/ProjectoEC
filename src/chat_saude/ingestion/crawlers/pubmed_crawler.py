@@ -44,10 +44,7 @@ def iniciar_driver():
         "profile.managed_default_content_settings.cookies": 2,
     }
     options.add_experimental_option("prefs", prefs)
-    options.add_argument(
-        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    )
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
     return driver
@@ -64,17 +61,12 @@ def extrair_dados_pubmed(driver, termo_pesquisa: str, num_paginas: int = 5) -> l
             driver.get(url)
 
             try:
-                WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, "a.docsum-title"))
-                )
+                WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "a.docsum-title")))
             except Exception:
                 print("    No more results. Skipping term.")
                 break
 
-            links = [
-                e.get_attribute("href")
-                for e in driver.find_elements(By.CSS_SELECTOR, "a.docsum-title")
-            ]
+            links = [e.get_attribute("href") for e in driver.find_elements(By.CSS_SELECTOR, "a.docsum-title")]
 
             # Navigate each found link
             for link in links:
@@ -84,16 +76,12 @@ def extrair_dados_pubmed(driver, termo_pesquisa: str, num_paginas: int = 5) -> l
                 try:
                     driver.get(link)
                     # Wait only for the title
-                    WebDriverWait(driver, 5).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, "h1.heading-title"))
-                    )
+                    WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, "h1.heading-title")))
 
                     # Extraction
                     titulo = driver.find_element(By.CSS_SELECTOR, "h1.heading-title").text.strip()
                     try:
-                        abstract = driver.find_element(
-                            By.CSS_SELECTOR, "div.abstract-content"
-                        ).text.strip()
+                        abstract = driver.find_element(By.CSS_SELECTOR, "div.abstract-content").text.strip()
                     except Exception:
                         abstract = ""  # If there is no abstract, it is not useful for RAG
 

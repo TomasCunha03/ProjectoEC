@@ -23,9 +23,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
     st.markdown(f"**Orthographic Globe: Average mortality by country ({disease_label})**")
 
     global_map_df = global_map_df.copy()
-    global_map_df["avg_mortality_rate"] = pd.to_numeric(
-        global_map_df["avg_mortality_rate"], errors="coerce"
-    )
+    global_map_df["avg_mortality_rate"] = pd.to_numeric(global_map_df["avg_mortality_rate"], errors="coerce")
 
     z_min = float(global_map_df["avg_mortality_rate"].min())
     z_max = float(global_map_df["avg_mortality_rate"].max())
@@ -84,8 +82,4 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         },
     )
     st.plotly_chart(fig_globe, use_container_width=True, theme="streamlit")
-    st.caption(
-        f"Disease in scope: {disease_label}. "
-        "Darker color means higher average mortality. "
-        "Hover to inspect recovery and affected population."
-    )
+    st.caption(f"Disease in scope: {disease_label}. Darker color means higher average mortality. Hover to inspect recovery and affected population.")

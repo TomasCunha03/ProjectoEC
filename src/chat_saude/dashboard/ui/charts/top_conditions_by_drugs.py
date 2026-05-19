@@ -55,6 +55,4 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         },
     )
     st.plotly_chart(fig, use_container_width=True, theme="streamlit")
-    st.caption(
-        "Medical conditions with the most available drugs. Color indicates average user rating."
-    )
+    st.caption("Medical conditions with the most available drugs. Color indicates average user rating.")

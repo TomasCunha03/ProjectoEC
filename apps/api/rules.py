@@ -39,8 +39,7 @@ FAQ = {
     ),
     # Architecture
     ("how do you work", "how does it work", "are you an ai", "what model are you"): (
-        "I use a specialized AI system that searches reliable medical documents "
-        "before generating responses, ensuring my answers are grounded in scientific evidence."
+        "I use a specialized AI system that searches reliable medical documents before generating responses, ensuring my answers are grounded in scientific evidence."
     ),
 }
 
@@ -260,9 +259,7 @@ def check_domain(query: str):
     non_medical_score = np.max(cosine_similarity(query_embedding, non_medical_embeddings))
 
     # Debugging
-    logger.info(
-        f"[DEBUG] Medical Score: {medical_score:.2f} | Non-Medical Score: {non_medical_score:.2f}"
-    )
+    logger.info(f"[DEBUG] Medical Score: {medical_score:.2f} | Non-Medical Score: {non_medical_score:.2f}")
 
     # Case A: The query is completely unrelated to anything the model knows
     if medical_score < 0.15 and non_medical_score < 0.15:
@@ -272,10 +269,7 @@ def check_domain(query: str):
     # Case B: It's clearly non-medical (with a 0.05 safety margin)
     if non_medical_score > (medical_score + 0.05):
         logger.warning("Query rejected (clearly non-medical): %r", query)
-        text_message = (
-            "I am a specialized medical assistant. I can only answer questions related to health, "
-            "medicine and wellness."
-        )
+        text_message = "I am a specialized medical assistant. I can only answer questions related to health, medicine and wellness."
         return text_message
 
     # Case C: It's a medical question (let it pass to the system)

@@ -58,11 +58,7 @@ def ingest_data():
                     s_res = cur.fetchone()
                     if s_res:
                         cur.execute(
-                            (
-                                "INSERT INTO disease_symptoms (disease_id, symptom_id) "
-                                "VALUES (%s, %s) "
-                                "ON CONFLICT DO NOTHING"
-                            ),
+                            ("INSERT INTO disease_symptoms (disease_id, symptom_id) VALUES (%s, %s) ON CONFLICT DO NOTHING"),
                             (disease_id, s_res[0]),
                         )
 

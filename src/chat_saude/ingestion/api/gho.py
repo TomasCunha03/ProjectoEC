@@ -46,15 +46,9 @@ def verify_mongo_connection(db=None) -> tuple[bool, str]:
         _ = list(db.list_collection_names())
         return True, "MongoDB connection OK (ping + list_collections succeeded)."
     except ServerSelectionTimeoutError as e:
-        return False, (
-            f"MongoDB connection failed (timeout): {e}. "
-            "Check MONGO_HOST, MONGO_PORT, network, and that MongoDB is running."
-        )
+        return False, (f"MongoDB connection failed (timeout): {e}. Check MONGO_HOST, MONGO_PORT, network, and that MongoDB is running.")
     except OperationFailure as e:
-        return False, (
-            f"MongoDB auth or command failed: {e}. "
-            "Check MONGO_USER and MONGO_PASSWORD (and that the user exists in the DB)."
-        )
+        return False, (f"MongoDB auth or command failed: {e}. Check MONGO_USER and MONGO_PASSWORD (and that the user exists in the DB).")
     except Exception as e:
         return False, f"MongoDB connection error: {type(e).__name__}: {e}"
 

@@ -93,10 +93,7 @@ def _cases() -> list[EvalCase]:
         EvalCase(
             id="tool_mongo_who",
             capability="mongo — WHO / indicators",
-            message=(
-                "Which WHO Global Health Observatory indicators or indicator codes "
-                "mention tuberculosis or TB?"
-            ),
+            message=("Which WHO Global Health Observatory indicators or indicator codes mention tuberculosis or TB?"),
             expected_tool="mongo_query",
             response_hint="",
             kind="tool",
@@ -112,10 +109,7 @@ def _cases() -> list[EvalCase]:
         EvalCase(
             id="tool_sql_stats",
             capability="sql — structured stats / facts",
-            message=(
-                "Using your SQL health database, how many distinct diseases are recorded, "
-                "and list three disease names from the diseases table."
-            ),
+            message=("Using your SQL health database, how many distinct diseases are recorded, and list three disease names from the diseases table."),
             expected_tool="sql_query",
             response_hint="",
             kind="tool",
@@ -123,10 +117,7 @@ def _cases() -> list[EvalCase]:
         EvalCase(
             id="tool_rag_chroma",
             capability="rag / chroma — literature & mechanisms",
-            message=(
-                "Explain the pathophysiological mechanisms of insulin resistance and why "
-                "physical activity improves glycemic control, based on scientific literature."
-            ),
+            message=("Explain the pathophysiological mechanisms of insulin resistance and why physical activity improves glycemic control, based on scientific literature."),
             expected_tool="rag_answer",
             response_hint="",
             kind="tool",
@@ -270,10 +261,7 @@ def run_startup_eval(report_path: str | None = None) -> bool:
     for case in cases:
         if case.requires_ollama and not ollama_ok:
             if strict_tools:
-                emit(
-                    f"[FAIL] {case.id} ({case.capability}) — "
-                    "Ollama unreachable (EVAL_REQUIRE_OLLAMA=1)"
-                )
+                emit(f"[FAIL] {case.id} ({case.capability}) — Ollama unreachable (EVAL_REQUIRE_OLLAMA=1)")
                 failed.append(case.id)
                 continue
             skipped.append(case.id)
@@ -315,12 +303,7 @@ def run_startup_eval(report_path: str | None = None) -> bool:
 
         emit(f"[{status}] {case.id} ({case.capability}) {dt:.1f}s — {detail}")
 
-    summary = (
-        f"\n=== Summary: {passed}/{len(cases)} passed"
-        + (f", skipped: {len(skipped)}" if skipped else "")
-        + (f", failed: {', '.join(failed)}" if failed else "")
-        + " ===\n"
-    )
+    summary = f"\n=== Summary: {passed}/{len(cases)} passed" + (f", skipped: {len(skipped)}" if skipped else "") + (f", failed: {', '.join(failed)}" if failed else "") + " ===\n"
     emit(summary.strip())
     emit()
 

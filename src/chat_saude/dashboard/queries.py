@@ -252,11 +252,7 @@ def chronic_filter_options_query() -> TextClause:
 def bcg_coverage_2023_query(filters: DashboardFilters) -> tuple[TextClause, dict[str, Any]]:
     """Query for immunization administrative coverage by country for a selected year."""
     target_year = filters.immunization_end_year or filters.immunization_start_year or 2023
-    vaccine_code = (
-        filters.vaccine_code.strip().upper()
-        if isinstance(filters.vaccine_code, str) and filters.vaccine_code.strip()
-        else None
-    )
+    vaccine_code = filters.vaccine_code.strip().upper() if isinstance(filters.vaccine_code, str) and filters.vaccine_code.strip() else None
 
     params: dict[str, Any] = {"year": target_year}
     vaccine_clause = ""
@@ -287,11 +283,7 @@ def bcg_coverage_2023_query(filters: DashboardFilters) -> tuple[TextClause, dict
 def bcg_trend_query(filters: DashboardFilters) -> tuple[TextClause, dict[str, Any]]:
     """Query for immunization coverage trend over years (average, min, max across countries)."""
     params: dict[str, Any] = {}
-    vaccine_code = (
-        filters.vaccine_code.strip().upper()
-        if isinstance(filters.vaccine_code, str) and filters.vaccine_code.strip()
-        else None
-    )
+    vaccine_code = filters.vaccine_code.strip().upper() if isinstance(filters.vaccine_code, str) and filters.vaccine_code.strip() else None
     year_start = filters.immunization_start_year
     year_end = filters.immunization_end_year
 

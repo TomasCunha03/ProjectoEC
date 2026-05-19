@@ -19,9 +19,7 @@ CHUNK_SIZE = 500  # characters per chunk
 CHUNK_OVERLAP = 50  # overlap between chunks
 
 embedding_model = SentenceTransformer("BAAI/bge-base-en-v1.5")
-client_chromadb = chromadb.HttpClient(
-    host=os.getenv("VECTOR_HOST", "db_vector"), port=int(os.getenv("VECTOR_PORT", "8010"))
-)
+client_chromadb = chromadb.HttpClient(host=os.getenv("VECTOR_HOST", "db_vector"), port=int(os.getenv("VECTOR_PORT", "8010")))
 
 
 def extract_text(url: str) -> str:
@@ -38,9 +36,7 @@ def extract_text(url: str) -> str:
     return text
 
 
-def split_into_chunks(
-    text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP
-) -> list[str]:
+def split_into_chunks(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> list[str]:
     """Split text into overlapping chunks."""
     chunks = []
     start = 0

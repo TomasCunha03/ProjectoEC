@@ -72,11 +72,7 @@ def build_dashboard_summary(
         "global_disease_name": filters.global_disease_name if filters else None,
         "immunization_start_year": filters.immunization_start_year if filters else None,
         "immunization_end_year": filters.immunization_end_year if filters else None,
-        "vaccine_code": (
-            filters.vaccine_code.strip().upper()
-            if filters and isinstance(filters.vaccine_code, str) and filters.vaccine_code.strip()
-            else None
-        ),
+        "vaccine_code": (filters.vaccine_code.strip().upper() if filters and isinstance(filters.vaccine_code, str) and filters.vaccine_code.strip() else None),
         "top_n": _resolve_top_n(filters.top_n) if filters else 10,
         "chronic_location": filters.chronic_location if filters else None,
     }

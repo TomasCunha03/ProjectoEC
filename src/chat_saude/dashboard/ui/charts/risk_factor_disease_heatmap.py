@@ -138,9 +138,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
     # Calculate prevalence rates (%)
     for col in disease_cols:
         rate_col = col.replace("_cases", "_rate")
-        risk_df[rate_col] = (
-            (risk_df[col] / risk_df["total_respondents"].replace(0, 1)) * 100
-        ).round(2)
+        risk_df[rate_col] = ((risk_df[col] / risk_df["total_respondents"].replace(0, 1)) * 100).round(2)
 
     default_diseases = [
         "Diabetes",
@@ -207,9 +205,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         return
 
     # Create pivot for heatmap
-    pivot_df = heatmap_df.pivot_table(
-        index="Risk Factor", columns="Disease", values="Prevalence Rate (%)", aggfunc="mean"
-    )
+    pivot_df = heatmap_df.pivot_table(index="Risk Factor", columns="Disease", values="Prevalence Rate (%)", aggfunc="mean")
 
     # Create the heatmap using plotly
     fig = px.imshow(
@@ -244,7 +240,4 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         st.markdown("**Key Insights:**")
         top_association = heatmap_df.nlargest(3, "Prevalence Rate (%)")
         for _, row in top_association.iterrows():
-            st.write(
-                f"- **{row['Risk Factor']}** shows {row['Prevalence Rate (%)']:.1f}% "
-                f"prevalence rate for **{row['Disease']}**"
-            )
+            st.write(f"- **{row['Risk Factor']}** shows {row['Prevalence Rate (%)']:.1f}% prevalence rate for **{row['Disease']}**")
