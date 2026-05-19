@@ -126,7 +126,8 @@ services:
   db_vector:
     image: chromadb/chroma:latest
     environment:
-      - CHROMA_DB_PATH=${VECTOR_DB_PATH}
+      # Chroma 1.x: persist_path must match the volume mount or data lives in the container layer only.
+      - CHROMA_PERSIST_PATH=/chroma/chroma
     volumes:
       - chroma_data:/chroma/chroma
     # Host bind uses VECTOR_PORT (see .env); Chroma always listens on 8000 inside the container.
@@ -174,9 +175,11 @@ services:
 
   minio:
     # Official image: reliable /minio/health/live + curl for healthchecks (Chainguard "minio ready local" often fails).
+    # Pre-create the langfuse bucket (matches upstream langfuse/langfuse docker-compose).
     image: minio/minio:latest
     restart: always
-    command: server /data --console-address ":9001"
+    entrypoint: sh
+    command: -c "mkdir -p /data/langfuse && minio server /data --console-address :9001"
     environment:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: miniosecret
@@ -190,6 +193,15 @@ services:
       timeout: 5s
       retries: 15
       start_period: 15s
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command: -c "mc alias set local http://minio:9000 minio miniosecret && mc mb local/langfuse --ignore-existing"
+    restart: "no"
 
   langfuse:
     image: langfuse/langfuse:3
@@ -206,6 +218,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     healthcheck:
       test:
         [
@@ -295,6 +309,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     environment:
       - NEXTAUTH_URL=http://localhost:3000
       - DATABASE_URL=postgresql://langfuse:langfuse@langfuse-db:5432/langfuse

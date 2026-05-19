@@ -2,12 +2,16 @@ import os
 import re
 from urllib.parse import quote_plus
 
+import torch
 import yaml
 from langchain_community.utilities import SQLDatabase
 from langchain_ollama import ChatOllama
+from sentence_transformers import SentenceTransformer, util
 
 from chat_saude.observability.langfuse_client import end_span, start_span
 from chat_saude.observability.logger import get_logger
+
+embedding_model = SentenceTransformer("BAAI/bge-base-en-v1.5")
 
 logger = get_logger(__name__)
 
@@ -23,6 +27,59 @@ FORBIDDEN_KEYWORDS = [
     "GRANT",
     "REVOKE",
 ]
+
+
+def get_relevant_schema(user_question: str, yaml_path: str, top_k: int = 3) -> str:
+    """
+    Retrieve only the most relevant table schemas for the user question.
+    """
+
+    with open(yaml_path, "r", encoding="utf-8") as file:
+        schema_data = yaml.safe_load(file)
+
+    tables = schema_data.get("tables", [])
+
+    table_chunks = []
+
+    for table in tables:
+        table_name = table.get("name", "")
+        description = table.get("description", "")
+
+        columns = []
+        for col in table.get("columns", []):
+            columns.append(f"{col.get('name')} ({col.get('type')}): {col.get('description', '')}")
+
+        query_patterns = table.get("query_patterns", [])
+
+        chunk = f"""
+        Table: {table_name}
+
+        Description:
+        {description}
+
+        Columns:
+        {"; ".join(columns)}
+
+        Query patterns:
+        {"; ".join(query_patterns)}
+        """
+
+        table_chunks.append(chunk)
+
+    chunk_embeddings = embedding_model.encode(table_chunks, convert_to_tensor=True)
+
+    query_embedding = embedding_model.encode(user_question, convert_to_tensor=True)
+
+    scores = util.cos_sim(query_embedding, chunk_embeddings)[0]
+
+    top_results = torch.topk(scores, k=min(top_k, len(table_chunks)))
+
+    selected_chunks = []
+
+    for idx in top_results.indices:
+        selected_chunks.append(table_chunks[idx])
+
+    return "\n\n".join(selected_chunks)
 
 
 def load_prompt(yaml_path: str, key: str) -> str:
@@ -121,7 +178,7 @@ def sql_query(user_question: str) -> str:
         schema = get_slim_schema(db)
 
         llm = ChatOllama(
-            model=os.getenv("SQL_LLM_MODEL", "gemma3:1b"),
+            model=os.getenv("SQL_LLM_MODEL", "qwen2.5:1.5b"),
             base_url=os.getenv("OLLAMA_HOST", "http://ollama:11434"),
             temperature=0,
         )
@@ -130,7 +187,7 @@ def sql_query(user_question: str) -> str:
         prompts_path = os.path.abspath(os.path.join(base_dir, "..", "..", "agents", "prompts.yaml"))
         data_context_path = os.path.abspath(os.path.join(base_dir, "..", "..", "agents", "sql_schema.yaml"))
         gen_template = load_prompt(prompts_path, "sql_prompt")
-        data_context = load_sql_data_context(data_context_path)
+        data_context = get_relevant_schema(user_question=user_question, yaml_path=data_context_path, top_k=3)
 
         if not gen_template:
             msg = "Internal error: SQL generation prompt not found."

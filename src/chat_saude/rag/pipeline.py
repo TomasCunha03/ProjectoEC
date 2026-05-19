@@ -10,15 +10,35 @@ from chat_saude.observability.logger import get_logger
 
 logger = get_logger(__name__)
 
-COLLECTION_NAME = "pmc_medicine_preventive"
+COLLECTION_NAMES = ["pmc_medicine_preventive", "home_remedies"]
 
-embedding_model = SentenceTransformer("BAAI/bge-base-en-v1.5")
-reranker = CrossEncoder("BAAI/bge-reranker-base")
+# Lazy-loaded to avoid blocking API startup on first boot
+_embedding_model = None
+_reranker = None
+
+
+def _get_embedding_model():
+    global _embedding_model
+    if _embedding_model is None:
+        logger.info("Loading embedding model BAAI/bge-base-en-v1.5...")
+        _embedding_model = SentenceTransformer("BAAI/bge-base-en-v1.5")
+        logger.info("Embedding model loaded")
+    return _embedding_model
+
+
+def _get_reranker():
+    global _reranker
+    if _reranker is None:
+        logger.info("Loading reranker model BAAI/bge-reranker-base...")
+        _reranker = CrossEncoder("BAAI/bge-reranker-base")
+        logger.info("Reranker model loaded")
+    return _reranker
+
 
 chroma_client = get_chroma_client()
-collection = chroma_client.get_or_create_collection(name=COLLECTION_NAME)
+collections = [chroma_client.get_or_create_collection(name=name) for name in COLLECTION_NAMES]
 
-LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:1b")
+LLM_MODEL = os.getenv("LLM_MODEL", "qwen2.5:1.5b")
 
 # Load rag_prompt from prompts.yaml (src/chat_saude/rag: .. -> chat_saude, .. -> src, agents)
 agents_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "agents"))
@@ -70,19 +90,24 @@ def rag_answer(query: str) -> str:
     logger.info("RAG pipeline start: query=%s", query[:80])
 
     # embedding
-    emb = embedding_model.encode(query).tolist()
+    emb = _get_embedding_model().encode(query).tolist()
 
     # retrieval
-    results = collection.query(query_embeddings=[emb], n_results=5)
+    all_docs = []
 
-    docs = results["documents"][0]
-    logger.info("RAG retrieved %d docs", len(docs))
+    for collection in collections:
+        results = collection.query(query_embeddings=[emb], n_results=3)
+
+        docs = results["documents"][0]
+        all_docs.extend(docs)
+
+    logger.info("RAG retrieved %d docs", len(all_docs))
 
     # rerank
-    pairs = [(query, d) for d in docs]
-    scores = reranker.predict(pairs)
+    pairs = [(query, d) for d in all_docs]
+    scores = _get_reranker().predict(pairs)
 
-    ranked_docs = [d for _, d in sorted(zip(scores, docs), reverse=True)]
+    ranked_docs = [d for _, d in sorted(zip(scores, all_docs), reverse=True)]
 
     context = "\n".join(ranked_docs[:3])
 
