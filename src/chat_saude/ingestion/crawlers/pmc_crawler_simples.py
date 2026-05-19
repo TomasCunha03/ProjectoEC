@@ -2,9 +2,9 @@ import json
 import os
 import random
 import time
-import fitz
 from datetime import datetime
 
+import fitz
 import requests
 import trafilatura
 

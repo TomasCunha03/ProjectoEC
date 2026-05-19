@@ -220,6 +220,7 @@ non_medical_embeddings = model.encode(NON_MEDICAL_EXAMPLES)
 
 # --- 3. RULE ENGINE ---
 
+
 def check_emergency(query: str, threshold: float = 0.60):
     """
     Safety First: Checks if the user is in a critical medical situation.

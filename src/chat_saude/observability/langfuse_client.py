@@ -64,9 +64,7 @@ def get_langfuse():
         global _resolved_host
         if _resolved_host is None:
             _resolved_host = _resolve_langfuse_host(host)
-        _client = Langfuse(
-            public_key=public_key, secret_key=secret_key, host=_resolved_host
-        )
+        _client = Langfuse(public_key=public_key, secret_key=secret_key, host=_resolved_host)
     except Exception:
         _client = _noop
 
