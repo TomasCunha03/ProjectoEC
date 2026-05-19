@@ -350,7 +350,7 @@ tables:
         nullable: true
         description: Stratification identifier.
     value_examples:
-      data_value_unit: %, per 100000
+      data_value_unit: "%, per 100000"
       data_value_type: Crude prevalence, Age-adjusted prevalence
     query_patterns:
       - Retrieve indicator values by location and year range
