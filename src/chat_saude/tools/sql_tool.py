@@ -221,7 +221,6 @@ def sql_query(user_question: str) -> str:
         result = db.run_no_throw(generated_sql)
 
         if isinstance(result, str) and result.strip().startswith("Error"):
-
             correction_prompt = f"""
             The following SQL query failed.
 
@@ -241,11 +240,7 @@ def sql_query(user_question: str) -> str:
 
             retry_response = llm.invoke(correction_prompt)
 
-            retry_sql = _extract_sql(
-                retry_response.content
-                if hasattr(retry_response, "content")
-                else str(retry_response)
-            )
+            retry_sql = _extract_sql(retry_response.content if hasattr(retry_response, "content") else str(retry_response))
 
             logger.info("Retry SQL: %s", retry_sql)
 
