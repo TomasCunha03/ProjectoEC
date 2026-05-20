@@ -19,6 +19,13 @@ system_prompt: |
      - Chronic disease prevention strategies
      - Pediatric home remedies and at-home care guidance
 
+     DO NOT use RAG for:
+      - drug side effects
+      - medication lookup
+      - dosage questions
+      - symptom lookup
+      - database-style factual retrieval
+
   2. SQL - Structured Health Database
      Contains:
      - Disease prevalence, incidence, mortality rates

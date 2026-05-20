@@ -221,14 +221,38 @@ def sql_query(user_question: str) -> str:
         result = db.run_no_throw(generated_sql)
 
         if isinstance(result, str) and result.strip().startswith("Error"):
-            msg = f"SQL query failed: {result}"
-            end_span(
-                span,
-                output_payload={"generated_sql": generated_sql, "error": msg},
-                level="ERROR",
-                status_message="sql_execution_error",
-            )
-            return msg
+            correction_prompt = f"""
+            The following SQL query failed.
+
+            User question:
+            {user_question}
+
+            SQL query:
+            {generated_sql}
+
+            Database error:
+            {result}
+
+            Fix the SQL query.
+            
+            Return ONLY valid PostgreSQL SQL.
+            """
+
+            retry_response = llm.invoke(correction_prompt)
+
+            retry_sql = _extract_sql(retry_response.content if hasattr(retry_response, "content") else str(retry_response))
+
+            logger.info("Retry SQL: %s", retry_sql)
+
+            if not retry_sql or not _is_safe_query(retry_sql):
+                return f"SQL query failed: {result}"
+
+            result = db.run_no_throw(retry_sql)
+
+            if isinstance(result, str) and result.strip().startswith("Error"):
+                return f"SQL query failed after retry: {result}"
+
+            generated_sql = retry_sql
 
         if result in ("", "[]", [], None):
             msg = "No results found for this question in the database."
