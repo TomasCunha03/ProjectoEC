@@ -840,7 +840,7 @@ _C4 = """<section class="lsec lc4-bg" id="architecture">
 <div class="c4-box" style="border-color:rgba(127,84,61,0.4);">
 <div class="c4-box-type" style="color:#c8906e;">[External]</div>
 <div class="c4-box-name">Ollama</div>
-<div class="c4-box-desc">Local LLM runtime. Runs Gemma model for generation &amp; reasoning.</div>
+<div class="c4-box-desc">Local LLM runtime. Runs Qwen model for generation &amp; reasoning.</div>
 </div>
 </div>
 <div class="c4-conn">│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│</div>
@@ -881,7 +881,7 @@ _TECH = """
       <div class="ltech-b"><div class="ltech-dot" style="background:#ff4b4b"></div>Streamlit</div>
       <div class="ltech-b"><div class="ltech-dot" style="background:#009688"></div>FastAPI</div>
       <div class="ltech-b"><div class="ltech-dot" style="background:#7F543D"></div>LangChain</div>
-      <div class="ltech-b"><div class="ltech-dot" style="background:#335765"></div>Ollama · Gemma</div>
+      <div class="ltech-b"><div class="ltech-dot" style="background:#335765"></div>Ollama · Qwen</div>
       <div class="ltech-b"><div class="ltech-dot" style="background:#74A8A4"></div>ChromaDB</div>
       <div class="ltech-b"><div class="ltech-dot" style="background:#336791"></div>PostgreSQL</div>
       <div class="ltech-b"><div class="ltech-dot" style="background:#4db33d"></div>MongoDB</div>
