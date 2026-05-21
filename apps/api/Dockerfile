@@ -1,27 +1,23 @@
 FROM python:3.11-slim
 
-# Define o diretório de trabalho dentro do container
+# Defines the directory for work inside the container
 WORKDIR /app
 
-# Copia o requirements.txt da raiz do projeto
+# Copies requirements.txt from the projetct root to the container
 COPY requirements.txt ./requirements.txt
 
-# Instala dependências
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        gcc \
-        build-essential \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install --upgrade pip \
+# Install dependencies  
+RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
-# Copia o conteúdo da API e dependências (chat_saude + agents em /app/src/agents)
+# Copies the content from the API and dependencies (chat_saude + agents em /app/src/agents)
 COPY apps/api ./api
 COPY src/agents ./src/agents
 COPY src/chat_saude ./src/chat_saude
 ENV PYTHONPATH=/app:/app/src
 
-# Expõe a porta do FastAPI
+# FastAPI Door
 EXPOSE 8500
 
-# Comando para correr a API
+# Run the API
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8500", "--reload"]
