@@ -1,3 +1,11 @@
+"""
+BRFSS risk factor vs disease diagnosis heatmap.
+
+Shows the prevalence rate (%) of each diagnosed condition broken down by
+modifiable risk factor sub-groups (e.g. Smoker vs Non-Smoker).
+SLOT = "main", ORDER = 40 — rendered in the Risk and Cost section.
+"""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -135,7 +143,9 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
 
     risk_df["total_respondents"] = pd.to_numeric(risk_df["total_respondents"], errors="coerce")
 
-    # Calculate prevalence rates (%)
+    # Convert raw case counts to prevalence rates (%).
+    # We replace 0 respondents with 1 to avoid a division-by-zero;
+    # rows with 0 respondents will produce a 0% rate, which is harmless.
     for col in disease_cols:
         rate_col = col.replace("_cases", "_rate")
         risk_df[rate_col] = ((risk_df[col] / risk_df["total_respondents"].replace(0, 1)) * 100).round(2)
@@ -204,7 +214,8 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         st.warning("No valid risk factor data to display.")
         return
 
-    # Create pivot for heatmap
+    # Pivot to a (risk factor × disease) matrix; mean aggregation collapses
+    # multiple risk_category rows that share the same risk_factor label.
     pivot_df = heatmap_df.pivot_table(index="Risk Factor", columns="Disease", values="Prevalence Rate (%)", aggfunc="mean")
 
     # Create the heatmap using plotly

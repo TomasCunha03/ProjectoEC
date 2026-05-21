@@ -24,6 +24,8 @@ services:
         condition: service_healthy
       langfuse:
         condition: service_healthy
+      api:
+        condition: service_healthy
     volumes:
       - ./data:/app/data
       - ./src:/app/src
@@ -47,7 +49,7 @@ services:
       start_period: 30s
 
   api:
-    build: 
+    build:
       context: .
       dockerfile: apps/api/Dockerfile
     ports:
@@ -66,6 +68,12 @@ services:
       - ./apps/api:/app/api
       - ./src/agents:/app/src/agents
       - ./src/chat_saude:/app/src/chat_saude
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8500/health >/dev/null 2>&1 || wget -qO- http://localhost:8500/health >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     depends_on:
       db_sql:
         condition: service_healthy

@@ -1,3 +1,12 @@
+"""
+ETL pipeline for the CDC Behavioral Risk Factor Surveillance System (BRFSS) dataset.
+
+BRFSS is an annual telephone survey that collects data on health-related risk
+behaviours, chronic health conditions, and use of preventive services among
+U.S. adults.  This module selects a curated subset of survey columns, cleans
+them, and bulk-inserts the rows into the ``brfss_responses`` PostgreSQL table.
+"""
+
 import os
 
 import numpy as np
@@ -11,6 +20,21 @@ load_dotenv()
 
 
 def ingest_brfss(csv_path):
+    """
+    Load, transform, and ingest a BRFSS CSV file into the database.
+
+    Only the columns listed in ``cols_map`` are kept; any column that is
+    absent from the CSV is silently ignored so the script remains tolerant of
+    year-to-year schema changes in the survey file.
+
+    BMI and weight are stored by BRFSS as integers scaled by 100 (e.g. 2750
+    means 27.50), so they are divided by 100 before insertion.
+
+    Parameters
+    ----------
+    csv_path : str
+        Absolute path to the BRFSS CSV file (e.g. ``BRFSS2023.csv``).
+    """
     if not os.path.exists(csv_path):
         print(f"Error: File {csv_path} was not found.")
         return
@@ -52,6 +76,7 @@ def ingest_brfss(csv_path):
         "_bmi5": "bmi",
     }
 
+    # Only keep columns that actually exist in this year's CSV to avoid KeyError
     available_cols = [c for c in cols_map.keys() if c in df.columns]
     df_final = df[available_cols].rename(columns=cols_map)
     print(f"Mapped columns: {len(df_final.columns)} out of {len(cols_map)}")
@@ -66,6 +91,7 @@ def ingest_brfss(csv_path):
         if col not in ["bmi", "weight_kg"]:
             df_final[col] = pd.to_numeric(df_final[col], errors="coerce")
 
+    # pandas NaN cannot be stored in PostgreSQL; replace with Python None (NULL)
     df_final = df_final.replace({np.nan: None})
 
     # Insert
@@ -79,6 +105,8 @@ def ingest_brfss(csv_path):
         ON CONFLICT (sequence_no) DO NOTHING
     """
 
+    # Convert DataFrame rows to plain tuples; execute_values sends them in a
+    # single round-trip which is far faster than per-row INSERT calls
     data_tuples = [tuple(x) for x in df_final.to_numpy()]
 
     try:

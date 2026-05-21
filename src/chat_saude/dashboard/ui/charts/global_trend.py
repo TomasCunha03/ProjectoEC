@@ -1,3 +1,11 @@
+"""
+Global health trend chart: mortality and recovery rates over time.
+
+Overlays both rates on the same axis so the viewer can immediately see how
+they track (or diverge) year-over-year.
+SLOT = "main", ORDER = 15 — rendered in the Global Overview section.
+"""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -9,6 +17,7 @@ ORDER = 15
 
 
 def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int]) -> None:
+    """Render a dual-line chart of global average mortality and recovery rates by year."""
     df = data.get("global_yearly_trend", pd.DataFrame())
 
     if df.empty:

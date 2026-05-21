@@ -1,3 +1,9 @@
+"""
+Horizontal bar chart: top chronic disease topics by average indicator value.
+
+SLOT = "chronic", ORDER = 20 — rendered inside the Chronic Disease section.
+"""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -9,6 +15,7 @@ ORDER = 20
 
 
 def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int]) -> None:
+    """Render a horizontal bar chart of the top chronic disease topics by average indicator value."""
     df = data.get("chronic_top_topics", pd.DataFrame())
 
     if df.empty:
@@ -17,6 +24,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
 
     df = df.copy()
     df["avg_data_value"] = pd.to_numeric(df["avg_data_value"], errors="coerce")
+    # Sort ascending so the highest-value bar appears at the top in a horizontal chart.
     df = df.dropna(subset=["avg_data_value"]).sort_values("avg_data_value", ascending=True)
 
     location = summary.get("chronic_location")

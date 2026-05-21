@@ -7,7 +7,11 @@ WORKDIR /app
 COPY requirements.txt ./requirements.txt
 
 # Instala dependências
-RUN pip install --upgrade pip \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
 # Copia o conteúdo da API e dependências (chat_saude + agents em /app/src/agents)

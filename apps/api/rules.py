@@ -1,3 +1,19 @@
+"""
+Semantic rule engine for the DrHouseGPT medical assistant.
+
+All user messages pass through this module before reaching the LLM pipeline.
+The engine uses a lightweight sentence-transformer model to compare incoming
+queries against labelled example sets via cosine similarity, enforcing three
+layers of safety/quality control in order:
+
+  1. Emergency detection  — immediately redirects life-threatening queries to
+                            emergency services without ever calling the LLM.
+  2. FAQ matching         — short-circuits common identity/capability questions
+                            with pre-written answers.
+  3. Domain restriction   — rejects clearly off-topic (non-medical) queries so
+                            the LLM is never used as a general-purpose assistant.
+"""
+
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -6,11 +22,16 @@ from chat_saude.observability.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Load the model
+# all-MiniLM-L6-v2 is chosen for its good balance of speed and semantic quality;
+# it runs comfortably on CPU, which keeps the API start-up time acceptable.
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 # --- 1. KNOWLEDGE BASE EXTENSION ---
 
+# FAQ maps a tuple of representative phrasings to a canned answer.
+# Using tuples as keys lets multiple semantically similar phrasings share one
+# answer; the pre-processing loop below flattens this into parallel lists so
+# each phrasing gets its own embedding.
 FAQ = {
     # Identity & Greetings
     (
@@ -43,7 +64,10 @@ FAQ = {
     ),
 }
 
-# Critical safety protocol
+# Representative phrases for life-threatening situations.
+# The emergency check compares any incoming query against these embeddings
+# before any other rule fires, ensuring no critical message ever reaches a
+# slower code path.
 EMERGENCY_EXAMPLES = [
     "I am having a heart attack",
     "I want to kill myself",
@@ -53,6 +77,9 @@ EMERGENCY_EXAMPLES = [
     "bleeding heavily",
 ]
 
+# Positive examples used to gauge medical relevance.
+# A broad, diverse set is intentional: the max similarity over this entire list
+# becomes a single "medical score" used in the domain classifier.
 MEDICAL_EXAMPLES = [
     # General & Chronic Medicine
     "what is hypertension",
@@ -84,6 +111,10 @@ MEDICAL_EXAMPLES = [
     "normal blood pressure range",
 ]
 
+# Negative examples spanning a wide range of off-topic domains.
+# Breadth here matters: covering sports, food, tech, finance, travel, etc.
+# ensures the classifier recognises non-medical queries even when phrased
+# in ways superficially similar to health topics (e.g. diet, exercise).
 NON_MEDICAL_EXAMPLES = [
     # Sports & Entertainment
     "who won the game",
@@ -202,9 +233,10 @@ NON_MEDICAL_EXAMPLES = [
     "social media marketing strategy",
 ]
 
-# --- 2. PRE-COMPUTING EMBEDTINGS ---
+# --- 2. PRE-COMPUTING EMBEDDINGS ---
 
-# FAQ pre-processing
+# Flatten the FAQ dict so each phrasing maps to its answer at the same index.
+# This lets us find the best answer with a single argmax after cosine similarity.
 faq_questions = []
 faq_answers = []
 for keys, answer in FAQ.items():
@@ -212,6 +244,8 @@ for keys, answer in FAQ.items():
         faq_questions.append(key)
         faq_answers.append(answer)
 
+# Embeddings are computed once at import time so inference is only the cost of
+# encoding the user query (not re-encoding the knowledge base on every request).
 faq_embeddings = model.encode(faq_questions)
 emergency_embeddings = model.encode(EMERGENCY_EXAMPLES)
 medical_embeddings = model.encode(MEDICAL_EXAMPLES)
@@ -221,8 +255,11 @@ non_medical_embeddings = model.encode(NON_MEDICAL_EXAMPLES)
 
 
 def check_emergency(query: str, threshold: float = 0.60):
-    """
-    Safety First: Checks if the user is in a critical medical situation.
+    """Return an emergency redirect message if the query resembles a life-threatening situation.
+
+    The threshold is intentionally permissive (0.60) so borderline cases are
+    still caught — a false positive here is far safer than a missed emergency.
+    Returns ``None`` when no emergency is detected.
     """
     query_embedding = model.encode([query])
     similarities = cosine_similarity(query_embedding, emergency_embeddings)[0]
@@ -237,7 +274,12 @@ def check_emergency(query: str, threshold: float = 0.60):
 
 
 def check_faq(query: str, threshold: float = 0.45):
-    """Checks for standard identity and capability questions."""
+    """Return the pre-written answer for identity/capability questions, or ``None``.
+
+    A lower threshold than the emergency check (0.45) is acceptable here
+    because the worst outcome of a false positive is just a slightly unexpected
+    canned response, not a safety risk.
+    """
     query_embedding = model.encode([query])
     similarities = cosine_similarity(query_embedding, faq_embeddings)[0]
 
@@ -250,15 +292,19 @@ def check_faq(query: str, threshold: float = 0.45):
 
 
 def check_domain(query: str):
-    """
-    Classifies if the prompt is medical or non-medical using a confidence margin.
+    """Classify the query as medical, non-medical, or unintelligible, and reject if needed.
+
+    Uses the maximum cosine similarity against the positive (medical) and
+    negative (non-medical) example sets as competing confidence scores.
+
+    Returns a rejection message string when the query should be blocked, or
+    ``None`` when the query is medical and can proceed to the LLM pipeline.
     """
     query_embedding = model.encode([query])
 
     medical_score = np.max(cosine_similarity(query_embedding, medical_embeddings))
     non_medical_score = np.max(cosine_similarity(query_embedding, non_medical_embeddings))
 
-    # Debugging
     logger.info(f"[DEBUG] Medical Score: {medical_score:.2f} | Non-Medical Score: {non_medical_score:.2f}")
 
     # Case A: The query is completely unrelated to anything the model knows
@@ -266,7 +312,9 @@ def check_domain(query: str):
         logger.warning("Query rejected (completely unrelated): %r", query)
         return "I'm not quite sure what you're asking. Could you rephrase your question?"
 
-    # Case B: It's clearly non-medical (with a 0.05 safety margin)
+    # Case B: It's clearly non-medical (with a 0.05 safety margin).
+    # The margin prevents ambiguous health-adjacent queries (e.g. "yoga vs pilates")
+    # from being rejected just because they score slightly higher on non-medical examples.
     if non_medical_score > (medical_score + 0.05):
         logger.warning("Query rejected (clearly non-medical): %r", query)
         text_message = "I am a specialized medical assistant. I can only answer questions related to health, medicine and wellness."
@@ -277,7 +325,15 @@ def check_domain(query: str):
 
 
 def apply_rules(query: str):
+    """Run the full rule pipeline against a user query and return an early response if needed.
 
+    Checks are ordered by severity so that the most critical checks short-circuit
+    first, avoiding unnecessary computation and preventing any chance of routing
+    an emergency to the slower LLM path.
+
+    Returns a string response to send directly to the user, or ``None`` if the
+    query passed all checks and should be forwarded to the LLM pipeline.
+    """
     # 1. EMERGENCY OVERRIDE
     result = check_emergency(query)
     if result:

@@ -21,7 +21,7 @@ COLLECTION_INDICATORS = "gho_indicators"
 COLLECTION_DIMENSIONS = "gho_dimensions"
 
 
-def _mongo_config():
+def _mongo_config() -> dict:
     """Return current MongoDB config (password masked) for debugging."""
     return {
         "MONGO_HOST": os.getenv("MONGO_HOST", "localhost"),
@@ -104,14 +104,14 @@ def ingest_to_mongo(db=None, skip_connection_check: bool = False):
             sys.exit(1)
         print("[DEBUG] DB connection verified.")
 
-    # 1. Indicators
+    # 1. Indicators — replace the entire collection on each run to stay current
     indicators = fetch_indicators()
     coll_indicators = db[COLLECTION_INDICATORS]
     coll_indicators.delete_many({})
     if indicators:
         coll_indicators.insert_many(indicators)
 
-    # 2. Dimensions
+    # 2. Dimensions — same full-replace strategy as indicators
     dimensions = fetch_dimensions()
     coll_dimensions = db[COLLECTION_DIMENSIONS]
     coll_dimensions.delete_many({})
@@ -123,20 +123,23 @@ def ingest_to_mongo(db=None, skip_connection_check: bool = False):
         code = dim.get("Code")
         if not code:
             continue
-        # Normalize code to build collection name, e.g. "Country" -> "gho_country_dimension_values"
+        # Normalize code to build a valid MongoDB collection name,
+        # e.g. "COUNTRY" -> "gho_country_dimension_values"
         safe_code = str(code).strip().lower().replace(" ", "_")
         collection_name = f"gho_{safe_code}_dimension_values"
         try:
             values = fetch_dimension_values(code)
             for v in values:
-                v["_dimension_code"] = code  # allow filtering by dimension
+                # Tag each value document with its parent dimension code so
+                # consumers can filter across the combined collection if needed
+                v["_dimension_code"] = code
             if values:
                 coll_dim_values = db[collection_name]
                 coll_dim_values.delete_many({})
                 coll_dim_values.insert_many(values)
                 total_dim_values += len(values)
         except requests.RequestException:
-            # skip dimension if request fails
+            # A failed request for one dimension should not abort the whole run
             continue
 
     return {

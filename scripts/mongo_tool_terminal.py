@@ -1,5 +1,11 @@
 """
 Interactive CLI to test the MongoDB tool pipeline.
+
+Runs a series of automated smoke tests against the MongoDB connection
+(connection ping, indicator search, dimension lookup) and then drops into
+an interactive prompt where free-text questions are routed through the full
+LLM + MongoDB pipeline.
+
 Run from repo root with PYTHONPATH=src: python scripts/mongo_tool_terminal.py
 """
 
@@ -13,6 +19,14 @@ from chat_saude.tools.mongo_tool import (
 
 
 def test_connection(db):
+    """Verify that the MongoDB server is reachable and list available collections.
+
+    Args:
+        db: A pymongo Database object returned by _get_mongo_db().
+
+    Returns:
+        True if the ping succeeded, False otherwise.
+    """
     print("\n[1] Testing MongoDB connection...")
     try:
         db.client.admin.command("ping")
@@ -27,6 +41,11 @@ def test_connection(db):
 
 
 def test_search_indicators(db):
+    """Search for health indicators matching a fixed keyword and print the top results.
+
+    Args:
+        db: A pymongo Database object returned by _get_mongo_db().
+    """
     keyword = "diabetes"
     print(f"\n[2] Searching indicators for '{keyword}'...")
     results = _search_indicators(db, keyword, limit=5)
@@ -35,10 +54,16 @@ def test_search_indicators(db):
         for r in results:
             print(f"       [{r.get('IndicatorCode', 'N/A')}] {r.get('IndicatorName', 'N/A')}")
     else:
+        # Empty result usually means the GHO ingestion has not been run yet
         print("    No results (empty database? run api ingestion first).")
 
 
 def test_dimension_values(db):
+    """Retrieve a sample of values for the COUNTRY dimension and print them.
+
+    Args:
+        db: A pymongo Database object returned by _get_mongo_db().
+    """
     dim = "COUNTRY"
     print(f"\n[3] Getting values for dimension '{dim}'...")
     results = _get_dimension_values(db, dim, limit=5)
@@ -51,6 +76,11 @@ def test_dimension_values(db):
 
 
 def interactive_mode():
+    """Start an interactive prompt that forwards questions to the mongo_query pipeline.
+
+    Accepts Portuguese ("sair") and English ("exit", "quit", "q") exit commands.
+    Ctrl+C is also handled gracefully.
+    """
     print("\n" + "=" * 80)
     print("INTERACTIVE MODE - MONGODB TOOL")
     print("=" * 80)
@@ -82,6 +112,7 @@ def interactive_mode():
 if __name__ == "__main__":
     db = _get_mongo_db()
 
+    # Run smoke tests first; only enter interactive mode if the connection is healthy
     ok = test_connection(db)
     if ok:
         test_search_indicators(db)

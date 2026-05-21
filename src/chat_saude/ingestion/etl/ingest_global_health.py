@@ -1,3 +1,14 @@
+"""
+ETL pipeline for the Global Health Statistics dataset.
+
+The source CSV provides synthetic country-level statistics on disease
+prevalence, incidence, mortality, healthcare access, and socioeconomic
+indicators across multiple years.  This module renames the human-readable
+column headers to SQL-safe names and bulk-inserts the rows into the
+``global_health_stats`` PostgreSQL table, skipping duplicate combinations of
+(country, year, disease_name, age_group, gender).
+"""
+
 import os
 
 import pandas as pd
@@ -12,6 +23,14 @@ load_dotenv()
 
 
 def ingest_global_stats(csv_path):
+    """
+    Load, transform, and ingest the Global Health Statistics CSV into the database.
+
+    Parameters
+    ----------
+    csv_path : str
+        Absolute path to the CSV file (e.g. ``Global Health Statistics.csv``).
+    """
     if not os.path.exists(csv_path):
         print(f"Error: File {csv_path} was not found.")
         return

@@ -1,3 +1,9 @@
+"""
+Chronic disease indicator trend line chart with optional confidence interval band.
+
+SLOT = "chronic", ORDER = 10 — first chart rendered in the Chronic Disease section.
+"""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -9,6 +15,12 @@ ORDER = 10
 
 
 def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int]) -> None:
+    """Render a line chart of the chronic indicator trend over years.
+
+    When the data includes confidence interval columns (``avg_low_ci`` /
+    ``avg_high_ci``) a shaded band is drawn behind the trend line.  The band
+    is omitted gracefully when CI values are entirely null.
+    """
     df = data.get("chronic_yearly_trend", pd.DataFrame())
 
     if df.empty:
@@ -34,6 +46,8 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
 
     has_ci = df["avg_low_ci"].notna().any() and df["avg_high_ci"].notna().any()
     if has_ci:
+        # Build a closed polygon (high CI going forward, low CI reversed) so
+        # Plotly's "toself" fill shades the entire confidence band.
         fig.add_trace(
             go.Scatter(
                 x=pd.concat([df["year"], df["year"][::-1]]),

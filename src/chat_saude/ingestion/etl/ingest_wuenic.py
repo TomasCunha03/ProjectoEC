@@ -1,3 +1,20 @@
+"""
+ETL pipeline for the WHO/UNICEF Estimates of National Immunization Coverage
+(WUENIC) dataset.
+
+WUENIC provides annual country-level vaccination coverage estimates for
+childhood immunisation programmes.  The data is organised as a star schema:
+
+* ``country_dim``        -- dimension table of ISO country codes and names
+* ``vaccine_dim``        -- dimension table of vaccine codes
+* ``immunization_fact``  -- fact table linking countries, vaccines, and years
+                            with coverage and population figures
+
+The Excel workbook is read from the ``wuenic_master`` sheet.  Dimension tables
+are populated first so that surrogate keys are available when building the fact
+rows.
+"""
+
 import os
 
 import numpy as np
@@ -11,6 +28,17 @@ load_dotenv()
 
 
 def ingest_wuenic(file_path):
+    """
+    Load the WUENIC Excel workbook and ingest it into the star-schema tables.
+
+    The function is idempotent: all INSERT statements use
+    ON CONFLICT … DO NOTHING, so re-running will not create duplicate rows.
+
+    Parameters
+    ----------
+    file_path : str
+        Absolute path to the WUENIC Excel file (e.g. ``wuenic-input.xlsx``).
+    """
     if not os.path.exists(file_path):
         print(f"Erro: O ficheiro {file_path} não foi encontrado.")
         return
@@ -71,8 +99,10 @@ def ingest_wuenic(file_path):
         )
 
         # -------------------------
-        # 3. OBTER IDS
+        # 3. GET SURROGATE IDS
         # -------------------------
+        # Build lookup dicts so we can resolve iso_code -> country_id and
+        # vaccine_code -> vaccine_id without issuing a query per fact row
         cur.execute("SELECT iso_code, id FROM country_dim")
         country_map = dict(cur.fetchall())
 
@@ -104,8 +134,8 @@ def ingest_wuenic(file_path):
                     row.get("children_target"),
                     row.get("births_unpd"),
                     row.get("surviving_infants"),
-                    None,  # calculated_coverage
-                    False,  # anomaly_flag
+                    None,   # calculated_coverage: reserved for downstream computation
+                    False,  # anomaly_flag: default to False; can be set by a later process
                 )
             )
 

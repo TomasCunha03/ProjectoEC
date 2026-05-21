@@ -1,3 +1,10 @@
+"""
+BRFSS population risk-factor prevalence bar chart.
+
+Shows the percentage of survey respondents who fall into the "at-risk"
+category for each modifiable lifestyle risk factor.  SLOT = "main", ORDER = 45.
+"""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -7,6 +14,8 @@ import streamlit as st
 SLOT = "main"
 ORDER = 45
 
+# Risk factor labels that represent the unhealthy/at-risk sub-group within each category.
+# Used to select the correct rows when computing the prevalence rate.
 _POSITIVE_RISK_FACTORS = {
     "Smoker",
     "High BP",
@@ -48,6 +57,12 @@ _COLORS = {
 
 
 def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int]) -> None:
+    """Render a horizontal bar chart of population-level risk factor prevalence.
+
+    For each risk category the chart shows what fraction of BRFSS respondents
+    belong to the at-risk sub-group (e.g. smokers among all respondents asked
+    about smoking).
+    """
     df = data.get("risk_factor_disease", pd.DataFrame())
 
     if df.empty:
@@ -69,7 +84,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
 
         positive = cat_df[cat_df["risk_factor"].isin(_POSITIVE_RISK_FACTORS)]["total_respondents"].sum()
 
-        # BMI: count Overweight + Obese
+        # BMI splits into four groups; treat Overweight + Obese as "at risk".
         if category == "BMI Category":
             positive = cat_df[cat_df["risk_factor"].isin({"Overweight", "Obese"})]["total_respondents"].sum()
 

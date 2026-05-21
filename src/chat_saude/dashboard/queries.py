@@ -1,3 +1,15 @@
+"""
+SQL query builders for the health dashboard.
+
+Each public function accepts a ``DashboardFilters`` instance and returns a
+``(TextClause, params)`` pair ready to be executed by
+``DashboardDataService._run``.  Parameterised queries are used throughout
+to prevent SQL injection when filter values come from user input.
+
+Private helpers (``_build_*_where``, ``_resolve_top_n``) are shared across
+multiple query functions to keep the filter logic in one place.
+"""
+
 from typing import Any
 
 from sqlalchemy import text
@@ -7,6 +19,11 @@ from chat_saude.dashboard.filters import DashboardFilters
 
 
 def _resolve_top_n(filters: DashboardFilters, default: int = 10) -> int:
+    """Return a safe ``top_n`` value clamped to [1, 100].
+
+    Accepts string-encoded integers from the UI gracefully, and falls back
+    to ``default`` when the value is absent or unparseable.
+    """
     if filters.top_n is None:
         return default
     try:
@@ -17,6 +34,16 @@ def _resolve_top_n(filters: DashboardFilters, default: int = 10) -> int:
 
 
 def _build_global_where(filters: DashboardFilters) -> tuple[str, dict[str, Any]]:
+    """Build a SQL WHERE fragment for the ``global_health_stats`` table.
+
+    Returns a ``(where_string, params)`` pair.  ``"1=1"`` is the always-true
+    sentinel that lets every optional clause be appended with ``AND`` without
+    special-casing the first condition.
+
+    Disease name and category use ``%…%`` wildcards so partial strings work.
+    Country is an exact case-insensitive match because country names are
+    normalised in the database.
+    """
     clauses = ["1=1"]
     params: dict[str, Any] = {}
 
@@ -34,6 +61,7 @@ def _build_global_where(filters: DashboardFilters) -> tuple[str, dict[str, Any]]
 
     if filters.global_disease_name:
         clauses.append("disease_name ILIKE :global_disease_name")
+        # Wrap in wildcards so "cancer" matches "Lung Cancer", "Breast Cancer", etc.
         params["global_disease_name"] = f"%{filters.global_disease_name}%"
 
     if filters.global_disease_category:
@@ -44,6 +72,12 @@ def _build_global_where(filters: DashboardFilters) -> tuple[str, dict[str, Any]]
 
 
 def _build_chronic_where(filters: DashboardFilters) -> tuple[str, dict[str, Any]]:
+    """Build a SQL WHERE fragment for the ``chronic_disease_indicators`` table.
+
+    Mirrors ``_build_global_where`` but operates on the chronic dataset's
+    own column names (``year_start``, ``location_desc``, ``topic``).
+    Location and topic support partial matches via ``%…%`` wildcards.
+    """
     clauses = ["1=1"]
     params: dict[str, Any] = {}
 
@@ -67,6 +101,11 @@ def _build_chronic_where(filters: DashboardFilters) -> tuple[str, dict[str, Any]
 
 
 def global_kpis_query(filters: DashboardFilters) -> tuple[TextClause, dict[str, Any]]:
+    """Aggregate KPIs across the global health stats table.
+
+    Returns a single-row result with country count, total affected population,
+    and average mortality/recovery rates for the current filter selection.
+    """
     where_clause, params = _build_global_where(filters)
     statement = text(
         f"""
@@ -83,6 +122,7 @@ def global_kpis_query(filters: DashboardFilters) -> tuple[TextClause, dict[str, 
 
 
 def global_yearly_trend_query(filters: DashboardFilters) -> tuple[TextClause, dict[str, Any]]:
+    """Year-by-year average mortality and recovery rates for the global trend chart."""
     where_clause, params = _build_global_where(filters)
     statement = text(
         f"""
@@ -101,6 +141,12 @@ def global_yearly_trend_query(filters: DashboardFilters) -> tuple[TextClause, di
 
 
 def global_country_mortality_query(filters: DashboardFilters) -> tuple[TextClause, dict[str, Any]]:
+    """Per-country mortality summary used by the orthographic globe chart.
+
+    ``MIN(disease_name)`` is a deterministic way to pick one representative
+    disease name per country when multiple diseases are present — the globe
+    only displays mortality rate, so the exact disease chosen does not matter.
+    """
     where_clause, params = _build_global_where(filters)
     statement = text(
         f"""
@@ -122,6 +168,7 @@ def global_country_mortality_query(filters: DashboardFilters) -> tuple[TextClaus
 
 
 def global_top_categories_query(filters: DashboardFilters) -> tuple[TextClause, dict[str, Any]]:
+    """Top 10 disease categories by average prevalence rate."""
     where_clause, params = _build_global_where(filters)
     statement = text(
         f"""
@@ -142,6 +189,11 @@ def global_top_categories_query(filters: DashboardFilters) -> tuple[TextClause, 
 
 
 def chronic_kpis_query(filters: DashboardFilters) -> tuple[TextClause, dict[str, Any]]:
+    """Aggregate KPIs for the chronic disease indicators section.
+
+    Returns indicator count, distinct location count, and mean data value
+    for the current chronic filter selection.
+    """
     where_clause, params = _build_chronic_where(filters)
     statement = text(
         f"""
@@ -158,6 +210,7 @@ def chronic_kpis_query(filters: DashboardFilters) -> tuple[TextClause, dict[str,
 
 
 def chronic_yearly_trend_query(filters: DashboardFilters) -> tuple[TextClause, dict[str, Any]]:
+    """Year-by-year average chronic indicator value with 95% confidence interval bounds."""
     where_clause, params = _build_chronic_where(filters)
     statement = text(
         f"""
@@ -178,6 +231,7 @@ def chronic_yearly_trend_query(filters: DashboardFilters) -> tuple[TextClause, d
 
 
 def chronic_top_topics_query(filters: DashboardFilters) -> tuple[TextClause, dict[str, Any]]:
+    """Top 10 chronic disease topics by average indicator value."""
     where_clause, params = _build_chronic_where(filters)
     statement = text(
         f"""
@@ -198,6 +252,7 @@ def chronic_top_topics_query(filters: DashboardFilters) -> tuple[TextClause, dic
 
 
 def chronic_top_locations_query(filters: DashboardFilters) -> tuple[TextClause, dict[str, Any]]:
+    """Top 10 US states/locations by average chronic indicator value."""
     where_clause, params = _build_chronic_where(filters)
     statement = text(
         f"""
@@ -218,6 +273,11 @@ def chronic_top_locations_query(filters: DashboardFilters) -> tuple[TextClause, 
 
 
 def global_filter_options_query() -> TextClause:
+    """Single-row query that returns all distinct filter option values for the global section.
+
+    Aggregates min/max year and distinct country/category lists in one round-trip
+    to avoid multiple separate lookups on the UI startup path.
+    """
     return text(
         """
         SELECT
@@ -234,6 +294,7 @@ def global_filter_options_query() -> TextClause:
 
 
 def chronic_filter_options_query() -> TextClause:
+    """Single-row query that returns all distinct filter option values for the chronic section."""
     return text(
         """
         SELECT
@@ -251,6 +312,7 @@ def chronic_filter_options_query() -> TextClause:
 
 def bcg_coverage_2023_query(filters: DashboardFilters) -> tuple[TextClause, dict[str, Any]]:
     """Query for immunization administrative coverage by country for a selected year."""
+    # Prefer the end year; fall back to start year; default to 2023 (most recent complete dataset year).
     target_year = filters.immunization_end_year or filters.immunization_start_year or 2023
     vaccine_code = filters.vaccine_code.strip().upper() if isinstance(filters.vaccine_code, str) and filters.vaccine_code.strip() else None
 
@@ -287,6 +349,7 @@ def bcg_trend_query(filters: DashboardFilters) -> tuple[TextClause, dict[str, An
     year_start = filters.immunization_start_year
     year_end = filters.immunization_end_year
 
+    # Swap silently if the user accidentally entered the range backwards.
     if year_start is not None and year_end is not None and year_start > year_end:
         year_start, year_end = year_end, year_start
 
@@ -305,6 +368,9 @@ def bcg_trend_query(filters: DashboardFilters) -> tuple[TextClause, dict[str, An
 
     statement = text(
         f"""
+        -- First aggregate per-country/year to avoid double-counting when
+        -- multiple vaccine records exist for the same country in the same year,
+        -- then aggregate across countries per year for the trend line.
         WITH country_year_coverage AS (
             SELECT
                 imf.country_id,
@@ -665,6 +731,8 @@ def avg_rating_by_condition_query(
         WHERE medical_condition IS NOT NULL
           AND rating IS NOT NULL
         GROUP BY medical_condition
+        -- Require at least 5 drugs per condition to suppress noise from
+        -- conditions with very few data points skewing the average.
         HAVING COUNT(*) >= 5
         ORDER BY avg_rating DESC
         LIMIT :top_n

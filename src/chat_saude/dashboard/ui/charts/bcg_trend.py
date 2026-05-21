@@ -1,3 +1,9 @@
+"""
+Immunization coverage trend chart (multi-year line with min/max band).
+
+SLOT = "main", ORDER = 30 — rendered in the Immunization section.
+"""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -77,13 +83,15 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, object]) -> N
         color_discrete_sequence=["#3498db"],
     )
 
-    # Add min/max band
+    # Draw the min/max band using two invisible traces.
+    # The first trace (max) defines the upper boundary; the second trace
+    # (min) uses fill="tonexty" to shade back up to it, creating a band.
     fig.add_scatter(
         x=trend_df["year"],
         y=trend_df["max_coverage"],
         fill=None,
         mode="lines",
-        line_color="rgba(52, 152, 219, 0)",
+        line_color="rgba(52, 152, 219, 0)",  # fully transparent — upper boundary only
         name="Max Coverage",
         showlegend=False,
         hoverinfo="skip",
@@ -92,7 +100,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, object]) -> N
     fig.add_scatter(
         x=trend_df["year"],
         y=trend_df["min_coverage"],
-        fill="tonexty",
+        fill="tonexty",  # fill between this trace (min) and the previous one (max)
         mode="lines",
         line_color="rgba(52, 152, 219, 0)",
         name="Range",
@@ -140,6 +148,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, object]) -> N
     latest_year = trend_df[trend_df["year"] == trend_df["year"].max()].iloc[0]
     earliest_year = trend_df[trend_df["year"] == trend_df["year"].min()].iloc[0]
 
+    # Positive change = improvement; negative = decline in coverage over the period.
     coverage_change = latest_year["avg_coverage"] - earliest_year["avg_coverage"]
     year_range = int(latest_year["year"] - earliest_year["year"])
 
