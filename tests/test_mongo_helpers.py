@@ -17,6 +17,10 @@ def load_mongo_tool():
     pymongo_mod.MongoClient = DummyMongoClient
     sys.modules["pymongo"] = pymongo_mod
 
+    yaml_mod = types.ModuleType("yaml")
+    yaml_mod.safe_load = lambda *args, **kwargs: {}
+    sys.modules["yaml"] = yaml_mod
+
     sys.modules.pop("chat_saude.tools.mongo_tool", None)
     return importlib.import_module("chat_saude.tools.mongo_tool")
 

@@ -27,6 +27,10 @@ def load_sql_tool():
     st_mod.util = types.SimpleNamespace(cos_sim=lambda a, b: [[0]])
     sys.modules["sentence_transformers"] = st_mod
 
+    yaml_mod = types.ModuleType("yaml")
+    yaml_mod.safe_load = lambda *args, **kwargs: {}
+    sys.modules["yaml"] = yaml_mod
+
     lc_mod = types.ModuleType("langchain_community")
     lc_utils = types.ModuleType("langchain_community.utilities")
 
