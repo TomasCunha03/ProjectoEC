@@ -1,3 +1,20 @@
+"""
+Chat service module.
+
+Implements the core request-handling logic for the conversational health assistant:
+
+1. Fast-path keyword detection for dashboard filter requests (bypasses the LLM
+   tool-selection step because domain-similarity checks would reject these).
+2. Hard-coded rule evaluation for messages that should always be answered the
+   same way (e.g. greetings, out-of-scope disclaimers).
+3. LLM-based tool selection to route the remaining messages to one or more
+   backends: RAG (vector search + LLM), SQL (PostgreSQL), or MongoDB.
+4. Resilient parallel-degraded execution so that a failure in one backend
+   produces a partial answer rather than a full error response.
+
+Every step is traced in Langfuse for observability.
+"""
+
 import re
 import time
 from collections.abc import Callable
@@ -19,8 +36,10 @@ from chat_saude.tools.sql_tool import sql_query
 
 logger = get_logger(__name__)
 
+# User-facing message shown when a single tool fails and no recovery is available.
 _TOOL_DEGRADED_MESSAGE = "I couldn't complete that part of your request. Please try rephrasing or asking again in a moment."
 
+# User-facing message shown when the entire chat service raises an unhandled exception.
 _SERVICE_FAILURE_MESSAGE = "Something went wrong while processing your message. Please try again shortly."
 
 
@@ -39,8 +58,8 @@ def _execute_ordered_tools_resilient(
     primary tool raised (including failed recovery RAG).
     """
     replies_by_tool: dict[str, str] = {}
-    successful_rag: str | None = None
-    recovery_rag_called = False
+    successful_rag: str | None = None  # Cache the first successful RAG result for reuse in recovery.
+    recovery_rag_called = False  # Guard to avoid calling recovery RAG more than once per request.
     degraded = False
 
     for tool in ordered_tools:
@@ -49,6 +68,7 @@ def _execute_ordered_tools_resilient(
             out = tool_to_fn[tool](message)
             replies_by_tool[tool] = out
             if tool == "rag_answer":
+                # Cache so failed SQL/Mongo tools can fall back to this answer.
                 successful_rag = out
             end_span(tool_span, output_payload={"reply": out})
         except Exception as exc:
@@ -62,17 +82,22 @@ def _execute_ordered_tools_resilient(
             )
 
             if tool == "rag_answer":
+                # RAG itself failed — no recovery path, show degraded message.
                 replies_by_tool[tool] = _TOOL_DEGRADED_MESSAGE
                 continue
 
             if successful_rag is not None:
+                # A prior RAG call in this request succeeded — reuse its answer
+                # rather than making another LLM call.
                 replies_by_tool[tool] = successful_rag
                 continue
 
             if recovery_rag_called:
+                # Recovery RAG was already attempted (and failed) — give up.
                 replies_by_tool[tool] = _TOOL_DEGRADED_MESSAGE
                 continue
 
+            # Last resort: call RAG as a recovery for the failed structured-data tool.
             recovery_span = start_span(
                 name="recovery_rag",
                 input_payload={"message": message, "after_tool_failure": tool},
@@ -125,6 +150,12 @@ _DASHBOARD_IMPLICIT_RE = re.compile(
 
 
 def _is_dashboard_request(message: str) -> bool:
+    """Return True if the message is asking to change or filter a dashboard view.
+
+    Requires both a keyword (explicit "dashboard" or an implicit domain phrase)
+    AND an action verb, to avoid treating purely informational questions about
+    dashboards as filter commands.
+    """
     has_action = bool(_DASHBOARD_ACTION_RE.search(message))
     if bool(_DASHBOARD_KEYWORD_RE.search(message)) and has_action:
         return True
@@ -135,6 +166,13 @@ class ChatService:
     """Orchestrates chat: rules, tool selection, and tool execution."""
 
     def handle_chat(self, message: str) -> dict:
+        """Process a user message end-to-end and return a response dictionary.
+
+        The dictionary always contains at least ``response`` and ``tool_used``.
+        It may also include ``tools_used`` (comma-separated list when multiple
+        backends were called), ``dashboard_filters`` (only for dashboard
+        requests), and ``degraded`` (True when any tool failed gracefully).
+        """
         t_start = time.perf_counter()
         logger.info("Incoming chat message: %s", message)
         start_trace(name="chat_request", input_payload={"message": message})
@@ -202,6 +240,7 @@ class ChatService:
                 finalize_trace(output_payload=result)
                 return result
 
+            # Preserve a stable execution order regardless of how the LLM listed tools.
             ordered_tools = [t for t in ["rag_answer", "sql_query", "mongo_query"] if t in selected_tools]
 
             tool_to_span = {

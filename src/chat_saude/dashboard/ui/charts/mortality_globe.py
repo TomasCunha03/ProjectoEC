@@ -1,3 +1,11 @@
+"""
+Orthographic globe choropleth: average mortality rate by country.
+
+Uses Plotly's ``choropleth`` with ``projection_type="orthographic"`` for a
+3-D-looking globe that is more engaging than a flat world map.
+SLOT = "main", ORDER = 10 — first chart in the Global Overview section.
+"""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -9,6 +17,12 @@ ORDER = 10
 
 
 def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int]) -> None:
+    """Render an orthographic globe coloured by average country-level mortality rate.
+
+    The colour scale is anchored to the actual min/max of the filtered data
+    rather than a fixed range, so contrast is preserved even when the range is
+    narrow (e.g. a single disease).
+    """
     global_map_df = data.get("global_map", pd.DataFrame())
 
     if global_map_df.empty:
@@ -25,6 +39,8 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
     global_map_df = global_map_df.copy()
     global_map_df["avg_mortality_rate"] = pd.to_numeric(global_map_df["avg_mortality_rate"], errors="coerce")
 
+    # Anchor colour scale to the actual data range rather than 0–100
+    # so variation between countries is visible even in a narrow band.
     z_min = float(global_map_df["avg_mortality_rate"].min())
     z_max = float(global_map_df["avg_mortality_rate"].max())
 

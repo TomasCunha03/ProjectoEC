@@ -1,3 +1,15 @@
+"""
+Langfuse observability client module.
+
+Wraps the Langfuse SDK so that:
+  - When credentials are missing or the SDK is not installed, every call silently
+    becomes a no-op; callers never need to guard against ``None``.
+  - The active trace and current parent span are stored in ``ContextVar`` so
+    concurrent async/threaded requests each maintain their own observation chain.
+  - The correct Langfuse host is discovered at startup by probing known URLs,
+    handling both Docker Compose service-name DNS and localhost access.
+"""
+
 import os
 import urllib.error
 import urllib.request
@@ -5,6 +17,12 @@ from contextvars import ContextVar
 
 
 class _NoOpEntity:
+    """Null-object replacement for a real Langfuse trace or span.
+
+    Returned whenever Langfuse is unavailable so callers can use the same
+    start/update/end API without any conditional checks.
+    """
+
     def start_observation(self, *args, **kwargs):  # noqa: ANN002, ANN003
         return self
 
@@ -15,9 +33,12 @@ class _NoOpEntity:
         return None
 
 
+# Per-request state stored in context variables so concurrent requests don't
+# share trace/span references across threads or async tasks.
 _current_trace: ContextVar[object | None] = ContextVar("current_langfuse_trace", default=None)
 _current_parent_span: ContextVar[object | None] = ContextVar("current_langfuse_parent_span", default=None)
 
+# Module-level singletons — initialised lazily on first use.
 _client = None
 _noop = _NoOpEntity()
 _resolved_host: str | None = None
@@ -44,6 +65,11 @@ def _resolve_langfuse_host(host: str) -> str:
 
 
 def get_langfuse():
+    """Return the module-level Langfuse client, creating it on the first call.
+
+    Falls back to the no-op singleton when credentials are absent or the SDK
+    import fails, ensuring callers always receive a usable object.
+    """
     global _client
     if _client is not None:
         return _client
@@ -53,6 +79,7 @@ def get_langfuse():
     host = os.getenv("LANGFUSE_HOST")
 
     if not public_key or not secret_key or not host:
+        # Langfuse is not configured — degrade silently.
         _client = _noop
         return _client
 
@@ -61,9 +88,11 @@ def get_langfuse():
 
         global _resolved_host
         if _resolved_host is None:
+            # Probe once and cache the reachable host URL for subsequent calls.
             _resolved_host = _resolve_langfuse_host(host)
         _client = Langfuse(public_key=public_key, secret_key=secret_key, host=_resolved_host)
     except Exception:
+        # SDK not installed or instantiation failed — degrade silently.
         _client = _noop
 
     return _client
@@ -91,8 +120,14 @@ def start_trace(name: str, input_payload: object):
 
 
 def start_span(name: str, input_payload: object = None):
+    """Open a child span nested under the current parent span (or the root trace).
+
+    The new span is stored as the current parent so that subsequent calls to
+    ``start_span`` nest correctly within the same request context.
+    """
     parent = _current_parent_span.get()
     trace = _current_trace.get()
+    # Prefer the innermost open span; fall back to the root trace, then the client.
     entity = parent or trace or get_langfuse()
 
     try:
@@ -108,6 +143,12 @@ def start_span(name: str, input_payload: object = None):
 
 
 def end_span(span, output_payload: object = None, level: str | None = None, status_message: str | None = None):
+    """Close a span and record optional output, severity level, and status message.
+
+    ``level`` and ``status_message`` are used to surface errors in the Langfuse
+    UI without raising exceptions in the caller.  The current parent span is
+    cleared so the context returns to the root trace after this span closes.
+    """
     try:
         update_kwargs: dict = {}
         if output_payload is not None:
@@ -131,6 +172,12 @@ def end_span(span, output_payload: object = None, level: str | None = None, stat
 
 
 def finalize_trace(output_payload: object = None):
+    """Close the root trace for the current request and clear all context vars.
+
+    Must be called exactly once per request — both on the happy path and in
+    error handlers — to ensure the trace is flushed to Langfuse and the
+    context variables don't leak into the next request on the same thread.
+    """
     trace = _current_trace.get()
     try:
         if output_payload is not None:
@@ -139,5 +186,6 @@ def finalize_trace(output_payload: object = None):
     except Exception:
         pass
     finally:
+        # Always clear context so stale spans cannot bleed into the next request.
         _current_trace.set(None)
         _current_parent_span.set(None)

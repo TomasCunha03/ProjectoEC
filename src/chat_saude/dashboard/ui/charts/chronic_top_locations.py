@@ -1,3 +1,9 @@
+"""
+Horizontal bar chart: top US states/locations by chronic indicator value.
+
+SLOT = "chronic", ORDER = 30 — rendered inside the Chronic Disease section.
+"""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -9,6 +15,11 @@ ORDER = 30
 
 
 def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int]) -> None:
+    """Render a horizontal bar chart of the top US locations by average chronic indicator value.
+
+    The chart height scales with the number of rows so bars remain readable
+    regardless of how many locations are returned.
+    """
     df = data.get("chronic_top_locations", pd.DataFrame())
 
     if df.empty:
@@ -17,6 +28,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
 
     df = df.copy()
     df["avg_data_value"] = pd.to_numeric(df["avg_data_value"], errors="coerce")
+    # Sort ascending so the highest-value bar appears at the top in a horizontal chart.
     df = df.dropna(subset=["avg_data_value"]).sort_values("avg_data_value", ascending=True)
 
     topic = summary.get("chronic_topic")
@@ -33,7 +45,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
         color_continuous_scale="Oranges",
     )
     fig.update_layout(
-        height=max(250, len(df) * 28),
+        height=max(250, len(df) * 28),  # dynamic height: ~28 px per bar, minimum 250 px
         margin=dict(l=0, r=0, t=10, b=0),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",

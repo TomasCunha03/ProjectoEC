@@ -1,3 +1,13 @@
+"""
+Bar chart: top medical conditions by average drug rating (or top-rated drugs for a condition).
+
+Like ``top_conditions_by_drugs``, this chart switches mode when a disease filter
+is active — showing individual drug ratings instead of condition-level averages.
+The query enforces a minimum of 5 drugs per condition to suppress noise.
+
+SLOT = "main", ORDER = 20 — rendered in the Drug Insights section.
+"""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -9,6 +19,7 @@ ORDER = 20
 
 
 def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int]) -> None:
+    """Render a horizontal bar chart of conditions (or drugs) ranked by average user rating."""
     df = data.get("avg_rating_by_condition", pd.DataFrame())
     top_n = int(summary.get("top_n", 10))
     top_n = max(1, min(top_n, 100))
@@ -20,6 +31,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
     df = df.copy()
     df["avg_rating"] = pd.to_numeric(df["avg_rating"], errors="coerce")
     df["drug_count"] = pd.to_numeric(df["drug_count"], errors="coerce")
+    # Sort ascending so the highest-rated entry appears at the top of the horizontal chart.
     df = df.dropna(subset=["avg_rating"]).sort_values("avg_rating", ascending=True)
 
     condition = summary.get("global_disease_name")

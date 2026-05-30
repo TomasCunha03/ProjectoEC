@@ -1,3 +1,12 @@
+"""
+ETL pipeline for the CDC U.S. Chronic Disease Indicators (CDI) dataset.
+
+CDI is a collection of standardised, population-level surveillance indicators
+for chronic diseases and their risk factors across U.S. states and territories.
+This module selects the relevant columns, coerces numeric fields, and
+bulk-inserts the data into the ``chronic_disease_indicators`` PostgreSQL table.
+"""
+
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
@@ -9,6 +18,15 @@ load_dotenv()
 
 
 def ingest_cdi(csv_path):
+    """
+    Load, transform, and ingest a CDI CSV file into the database.
+
+    Parameters
+    ----------
+    csv_path : str
+        Absolute path to the CDI CSV file
+        (e.g. ``U.S._Chronic_Disease_Indicators.csv``).
+    """
     # 1. Load data
     df = pd.read_csv(csv_path)
 

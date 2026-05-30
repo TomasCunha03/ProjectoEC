@@ -1,3 +1,15 @@
+"""
+MongoDB tool for the chat_saude agent.
+
+Answers health questions by querying a MongoDB database that contains:
+  - WHO GHO indicator metadata and dimension-value lookup tables.
+  - MedlinePlus health-topic summaries (disease information).
+
+Action routing is done with lightweight regex heuristics rather than a
+separate LLM call, making the tool fast and predictable. The retrieved data
+is then passed to a local LLM (via Ollama) to compose a human-readable answer.
+"""
+
 import os
 import re
 import time
@@ -17,6 +29,11 @@ MONGO_CATALOG_PATH = os.path.join(AGENTS_DIR, "mongo_catalog.yaml")
 
 
 def _get_mongo_db():
+    """Return a MongoDB database handle using credentials from environment variables.
+
+    serverSelectionTimeoutMS is kept low so connection failures surface quickly
+    rather than blocking the agent for the default 30-second timeout.
+    """
     client = MongoClient(
         host=os.getenv("MONGO_HOST", "localhost"),
         port=int(os.getenv("MONGO_PORT", "27017")),
@@ -28,6 +45,13 @@ def _get_mongo_db():
 
 
 def _load_catalog_text() -> str:
+    """Read the mongo_catalog.yaml file and format it as a plain-text context string.
+
+    The catalog tells the LLM what collections exist and what they contain, so
+    the model can answer "what data is available?" questions accurately.
+    Returns an empty string when the file is missing or unreadable so the rest of
+    the tool can still proceed with just the fetched data context.
+    """
     try:
         with open(MONGO_CATALOG_PATH, encoding="utf-8") as file:
             catalog = yaml.safe_load(file) or {}
@@ -59,6 +83,11 @@ def _load_catalog_text() -> str:
 
 
 def _search_indicators(db, keyword: str, limit: int = 10) -> list[dict]:
+    """Search the WHO GHO indicator catalogue by name or code (case-insensitive).
+
+    Returns only the minimal projection (IndicatorCode, IndicatorName) to avoid
+    sending large documents to the LLM.
+    """
     collection = db["gho_indicators"]
     return list(
         collection.find(
@@ -74,16 +103,28 @@ def _search_indicators(db, keyword: str, limit: int = 10) -> list[dict]:
 
 
 def _get_dimension_values(db, dimension_code: str, limit: int = 30) -> list[dict]:
+    """Look up allowed values for a WHO GHO dimension (e.g. COUNTRY, AGEGROUP).
+
+    The convention is that each dimension has its own collection named
+    gho_<dimension_code_lowercase>_dimension_values.
+    """
+    # Normalise to the expected collection naming convention.
     safe_code = dimension_code.strip().lower().replace(" ", "_")
     collection_name = f"gho_{safe_code}_dimension_values"
     return list(db[collection_name].find({}, {"_id": 0, "Code": 1, "Title": 1}).limit(limit))
 
 
 def _list_collections(db) -> list[str]:
+    """Return a sorted list of all collection names in the database."""
     return sorted(db.list_collection_names())
 
 
 def _search_disease_info(db, keyword: str) -> dict | None:
+    """Fetch a MedlinePlus health-topic document matching the keyword.
+
+    Returns None when no matching document exists so callers can produce an
+    informative "not found" message rather than handling a KeyError.
+    """
     collection = db["medlineplus_health_topics"]
     return collection.find_one(
         {"disease_name": {"$regex": keyword, "$options": "i"}},
@@ -92,6 +133,20 @@ def _search_disease_info(db, keyword: str) -> dict | None:
 
 
 def _build_context(action: str, plan: dict, db) -> str:
+    """Execute the chosen action against MongoDB and format the results as plain text.
+
+    The returned string is injected directly into the LLM prompt so the model
+    can compose a human-readable answer grounded in real data.
+
+    Args:
+        action: One of the recognised action names (search_indicators,
+                get_dimension_values, list_collections, search_disease_info).
+        plan:   Parameters for the action (e.g. {"keyword": "diabetes"}).
+        db:     Live MongoDB database handle.
+
+    Returns:
+        A human-readable summary of the query results, ready for the LLM prompt.
+    """
     if action == "search_indicators":
         keyword = plan.get("keyword", "")
         results = _search_indicators(db, keyword)
@@ -139,6 +194,10 @@ def _build_context(action: str, plan: dict, db) -> str:
     return "Action not recognized."
 
 
+# ---------------------------------------------------------------------------
+# Heuristic routing — compiled once at import time for performance
+# ---------------------------------------------------------------------------
+
 # Patterns to detect questions about dimensions (countries, age groups, etc.)
 _DIMENSION_PATTERNS = {
     "COUNTRY": re.compile(r"\b(countr|nation|where|location)\w*\b", re.I),
@@ -148,6 +207,8 @@ _DIMENSION_PATTERNS = {
     "REGION": re.compile(r"\b(region|continent|area)\b", re.I),
 }
 
+# Words that carry no meaningful search signal and should be excluded when
+# building a fallback keyword from the remaining tokens of a question.
 _SKIP_WORDS = {
     "what",
     "which",
@@ -243,7 +304,19 @@ _KNOWN_DISEASES = [
 
 
 def _plan_query(user_question: str) -> tuple[str, dict]:
-    """Determine the MongoDB action and parameters from the question (no LLM used)."""
+    """Determine the MongoDB action and parameters from the question (no LLM used).
+
+    Routing priority (first match wins):
+      1. Explicit collection/availability questions  → list_collections
+      2. Disease-info patterns + known disease name  → search_disease_info
+      3. Dimension keywords (country, age, sex …)    → get_dimension_values
+      4. Known disease name alone                    → search_disease_info
+                                                       (or search_indicators if WHO-context words present)
+      5. Fallback: build keyword from remaining words → search_indicators
+
+    Returns:
+        A (action_name, parameters) tuple consumed by _build_context.
+    """
     q = user_question.lower()
 
     if re.search(r"\b(collections?|what data|what is available|available data)\b", q):
@@ -260,10 +333,14 @@ def _plan_query(user_question: str) -> tuple[str, dict]:
 
     for disease in _KNOWN_DISEASES:
         if re.search(rf"\b{re.escape(disease)}\b", q):
+            # If the question mentions WHO/GHO context, the user wants indicator
+            # metadata rather than a clinical disease summary.
             if re.search(r"\b(indicators?|who\s+indicators?|gho)\b", q):
                 return "search_indicators", {"keyword": disease}
             return "search_disease_info", {"keyword": disease}
 
+    # Last resort: strip noise words and use the first two meaningful tokens as
+    # a keyword to search the WHO indicator catalogue.
     words = [w for w in re.findall(r"[a-z]+", q) if len(w) > 3 and w not in _SKIP_WORDS]
     keyword = " ".join(words[:2]) if words else user_question[:30]
     return "search_indicators", {"keyword": keyword}
@@ -271,8 +348,19 @@ def _plan_query(user_question: str) -> tuple[str, dict]:
 
 def mongo_query(user_question: str) -> str:
     """
-    Query MongoDB based on the user's question.
-    Uses regex/heuristics to determine the action, then uses the LLM to generate the final response.
+    Query MongoDB based on the user's question and return a human-readable answer.
+
+    The function follows a two-step pipeline:
+      1. Heuristic routing (_plan_query) selects the appropriate collection
+         operation and extracts parameters without invoking the LLM.
+      2. The fetched data is forwarded to a local LLM (Ollama) which composes
+         a concise, well-structured answer in natural language.
+
+    Args:
+        user_question: The natural-language question from the user.
+
+    Returns:
+        A string with the LLM-generated answer, or raises on infrastructure errors.
     """
     logger.info("Mongo tool input: %s", user_question)
     span = start_span(name="mongo_tool", input_payload={"question": user_question})
@@ -284,6 +372,7 @@ def mongo_query(user_question: str) -> str:
         logger.info("Mongo tool plan: action=%s plan=%s", action, plan)
         data_context = _build_context(action, plan, db)
 
+        # Combine catalog metadata with the query results so the LLM has full context.
         context_parts = []
         if catalog_context:
             context_parts.append(catalog_context)

@@ -1,3 +1,11 @@
+"""
+Application configuration module.
+
+All runtime settings are resolved from environment variables or a .env file
+via Pydantic Settings.  Defaults are chosen for a fully local development
+setup so the application can start without any environment customisation.
+"""
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,4 +41,5 @@ class Settings(BaseSettings):
     OLLAMA_HOST: str = "http://localhost:11434"
 
 
+# Module-level singleton so every import shares the same resolved config.
 settings = Settings()

@@ -1,3 +1,18 @@
+"""
+ETL pipeline for the disease-symptom knowledge base.
+
+Ingests four related CSV files into normalised PostgreSQL tables:
+
+* ``symptom_Description.csv``  -> ``diseases`` (name, description)
+* ``Symptom-severity.csv``     -> ``symptoms`` (name, severity_weight)
+* ``dataset.csv``              -> ``disease_symptoms`` (disease-symptom links)
+* ``symptom_precaution.csv``   -> ``disease_precautions`` (one row per precaution)
+
+The dataset file stores up to 17 symptoms per disease as separate columns
+(``Symptom_1`` … ``Symptom_17``).  These are unpivoted here into the
+normalised ``disease_symptoms`` join table.
+"""
+
 import pandas as pd
 from dotenv import load_dotenv
 
@@ -8,6 +23,17 @@ load_dotenv()
 
 
 def ingest_data():
+    """
+    Ingest the full disease-symptom knowledge base from CSV files into PostgreSQL.
+
+    The function follows a strict insertion order so that foreign-key look-ups
+    (disease_id, symptom_id) resolve correctly: diseases and symptoms are
+    inserted first, then the join table ``disease_symptoms``, and finally
+    ``disease_precautions``.
+
+    All inserts use ON CONFLICT DO NOTHING so the script is idempotent and
+    can be re-run safely without creating duplicates.
+    """
     conn = get_db_connection()
     cur = conn.cursor()
 
@@ -30,10 +56,12 @@ def ingest_data():
 
     # 3. Ingest Symptoms and Severities
     for _, row in df_sev.iterrows():
+        # Symptom names in the severity file use underscores instead of spaces;
+        # normalise them so they match the format used in the mapping dataset
         cur.execute(
             """
                 INSERT INTO symptoms (name, severity_weight)
-                VALUES (%s, %s) 
+                VALUES (%s, %s)
                 ON CONFLICT (name) DO NOTHING
                 """,
             (row["Symptom"].strip().replace("_", " "), row["weight"]),

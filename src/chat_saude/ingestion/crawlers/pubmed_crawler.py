@@ -1,3 +1,16 @@
+"""
+PubMed preventive medicine crawler (Selenium-based).
+
+Uses a headless Chrome browser to search PubMed for a set of preventive
+medicine topics, visit each article page, and extract the title, abstract,
+PMID, and publication year.  Articles without a usable abstract are dropped
+because they add no value to the RAG knowledge base.  Results are
+deduplicated by PMID before being written to a JSON file.
+
+Note: A new driver instance is created per search term so that browser state
+does not carry over between searches.
+"""
+
 import json
 import os
 import re
@@ -11,13 +24,13 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
-# --- Output folders ---
+# Output is written next to the package's data directory
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data")
 JSON_PATH = os.path.join(OUTPUT_DIR, "dataset_pubmed_preventive.json")
 
-# --- Search terms focused on preventive medicine ---
+# Search terms focused on preventive medicine
 TERMOS_MEDICINA_PREVENTIVA = [
-    # Diretrizes Gerais
+    # General guidelines
     "preventive medicine guidelines",
     "primary care screening recommendations",
     # Chronic diseases
@@ -25,7 +38,7 @@ TERMOS_MEDICINA_PREVENTIVA = [
     "hypertension dietary approaches",
     "cardiovascular disease risk reduction",
     "obesity management strategies",
-    # Estilo de Vida
+    # Lifestyle
     "mediterranean diet health benefits",
     "physical activity chronic disease prevention",
     "smoking cessation interventions",
@@ -34,10 +47,20 @@ TERMOS_MEDICINA_PREVENTIVA = [
 
 
 def iniciar_driver():
+    """Create and return a headless Chrome WebDriver instance.
+
+    Images, stylesheets, cookies, and notifications are disabled to speed up
+    page loads.  The user-agent string is set to a common desktop browser
+    value to avoid being blocked by bot-detection heuristics.
+
+    Returns:
+        A configured selenium.webdriver.Chrome instance.
+    """
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--disable-blink-features=AutomationControlled")
     prefs = {
+        # Disable images and stylesheets — we only need text content
         "profile.managed_default_content_settings.images": 2,
         "profile.default_content_setting_values.notifications": 2,
         "profile.managed_default_content_settings.stylesheets": 2,
@@ -50,8 +73,22 @@ def iniciar_driver():
     return driver
 
 
-# --- CRAWLER ---
 def extrair_dados_pubmed(driver, termo_pesquisa: str, num_paginas: int = 5) -> list[dict]:
+    """Crawl PubMed search results for *termo_pesquisa* and return article records.
+
+    Iterates over result pages, collects article links from the search listing,
+    then visits each article page individually to extract structured metadata.
+    Only articles with a non-trivial abstract (>50 characters) are retained.
+
+    Args:
+        driver: An active Selenium WebDriver instance.
+        termo_pesquisa: The search query string passed to PubMed.
+        num_paginas: Number of result pages to visit per search term.
+
+    Returns:
+        A list of dicts containing pmid, title, abstract, year, search_term,
+        and url for each qualifying article found during this search.
+    """
     dados_locais = []
 
     for pagina in range(1, num_paginas + 1):
@@ -63,6 +100,7 @@ def extrair_dados_pubmed(driver, termo_pesquisa: str, num_paginas: int = 5) -> l
             try:
                 WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "a.docsum-title")))
             except Exception:
+                # No results element appeared — either the page is empty or we exceeded available pages
                 print("    No more results. Skipping term.")
                 break
 
@@ -71,23 +109,22 @@ def extrair_dados_pubmed(driver, termo_pesquisa: str, num_paginas: int = 5) -> l
             # Navigate each found link
             for link in links:
                 if link in [d["url"] for d in dados_locais]:
-                    continue  # Avoid local duplicates
+                    continue  # Avoid local duplicates within this search term
 
                 try:
                     driver.get(link)
-                    # Wait only for the title
+                    # Wait only for the title to appear before reading the page
                     WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, "h1.heading-title")))
 
-                    # Extraction
                     titulo = driver.find_element(By.CSS_SELECTOR, "h1.heading-title").text.strip()
                     try:
                         abstract = driver.find_element(By.CSS_SELECTOR, "div.abstract-content").text.strip()
                     except Exception:
-                        abstract = ""  # If there is no abstract, it is not useful for RAG
+                        abstract = ""  # Articles without an abstract are not useful for RAG
 
-                    # Quality filter: keep only if it has Abstract
+                    # Quality filter: keep only if it has a meaningful abstract
                     if abstract and len(abstract) > 50:
-                        # Extract PMID and year
+                        # Extract year from the citation metadata string (e.g. "2023 Jan;12(1):34-45")
                         try:
                             meta_str = driver.find_element(By.CSS_SELECTOR, "span.cit").text
                             year_match = re.search(r"\d{4}", meta_str)
@@ -95,6 +132,7 @@ def extrair_dados_pubmed(driver, termo_pesquisa: str, num_paginas: int = 5) -> l
                         except Exception:
                             year = "2024"
 
+                        # Extract PMID from the article URL path
                         pmid_match = re.search(r"/(\d+)/?$", link)
                         pmid = pmid_match.group(1) if pmid_match else "N/A"
 
@@ -109,7 +147,7 @@ def extrair_dados_pubmed(driver, termo_pesquisa: str, num_paginas: int = 5) -> l
                             }
                         )
                 except Exception:
-                    pass
+                    pass  # Silently skip individual articles that fail to load
 
         except Exception as e:
             print(f"Error on page {pagina}: {e}")
@@ -125,13 +163,15 @@ if __name__ == "__main__":
 
     for termo in TERMOS_MEDICINA_PREVENTIVA:
         print(f"\n=== Searching: '{termo}' ===")
+        # A fresh driver per term avoids session state accumulation
         resultados = extrair_dados_pubmed(iniciar_driver(), termo)
         todos_resultados.extend(resultados)
         print(f"Partial total: {len(todos_resultados)} articles collected.")
+        # Brief pause between search terms to be courteous to the PubMed servers
         time.sleep(3)
 
     if todos_resultados:
-        # Remove duplicates by PMID
+        # Remove duplicates by PMID — the same article can appear for multiple search terms
         vistos = set()
         unicos = []
         for r in todos_resultados:

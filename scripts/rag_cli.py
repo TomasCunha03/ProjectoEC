@@ -1,5 +1,10 @@
 """
 Interactive CLI for RAG: asks questions and prints answers using chat_saude.rag.pipeline.
+
+Provides a minimal read-eval-print loop so the RAG pipeline can be exercised
+from the terminal without starting the full web application.  Blank lines are
+ignored, "exit" terminates cleanly, and Ctrl+C is handled gracefully.
+
 Run from repo root with PYTHONPATH=src: python scripts/rag_cli.py
 """
 

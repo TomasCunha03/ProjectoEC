@@ -1,3 +1,12 @@
+"""
+UI-facing data helpers for the dashboard.
+
+Provides cached wrappers around ``DashboardDataService`` so that expensive
+database queries are not repeated on every Streamlit re-run.  Also contains
+utility functions for safely converting raw DB values to Python scalars and
+for assembling the ``summary`` dict consumed by all chart renderers.
+"""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -9,11 +18,22 @@ from chat_saude.dashboard.service import DashboardDataService
 
 @st.cache_resource
 def get_dashboard_service() -> DashboardDataService:
+    """Return a shared ``DashboardDataService`` instance.
+
+    ``@st.cache_resource`` ensures the SQLAlchemy engine is created only once
+    per Streamlit server process, not on every page interaction.
+    """
     return DashboardDataService()
 
 
 @st.cache_data(ttl=300)
 def get_dashboard_data(filters: DashboardFilters) -> dict[str, pd.DataFrame]:
+    """Fetch all dashboard DataFrames for the given filters in one call.
+
+    Results are cached for 300 seconds (5 minutes).  The cache is keyed on
+    ``filters``, which is a frozen dataclass and therefore hashable.  A
+    new DB round-trip is triggered only when filters change or the TTL expires.
+    """
     service = get_dashboard_service()
     return {
         "global_kpis": service.get_global_kpis(filters),
@@ -34,22 +54,26 @@ def get_dashboard_data(filters: DashboardFilters) -> dict[str, pd.DataFrame]:
 
 
 def clear_dashboard_cache() -> None:
+    """Invalidate all cached dashboard data, forcing a fresh DB fetch on the next render."""
     st.cache_data.clear()
 
 
 def _safe_float(value: object, default: float = 0.0) -> float:
+    """Convert a potentially-None or NaN DB value to a float, falling back to ``default``."""
     if value is None or pd.isna(value):
         return default
     return float(value)
 
 
 def _safe_int(value: object, default: int = 0) -> int:
+    """Convert a potentially-None or NaN DB value to an int, falling back to ``default``."""
     if value is None or pd.isna(value):
         return default
     return int(value)
 
 
 def _resolve_top_n(value: object, default: int = 10) -> int:
+    """Return a safe top-N value clamped to [1, 100], accepting string inputs from the UI."""
     if value is None:
         return default
     try:
@@ -63,6 +87,13 @@ def build_dashboard_summary(
     data: dict[str, pd.DataFrame],
     filters: "DashboardFilters | None" = None,
 ) -> dict:
+    """Assemble the flat ``summary`` dict passed to every chart renderer.
+
+    Chart renderers receive both ``data`` (the raw DataFrames) and ``summary``
+    (scalar values extracted from KPI rows and the current filters).  This
+    function is the single place where those scalars are extracted, so chart
+    modules never have to handle empty-DataFrame edge cases for KPI metrics.
+    """
     global_kpi_df = data.get("global_kpis", pd.DataFrame())
 
     summary: dict = {
