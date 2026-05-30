@@ -1,3 +1,20 @@
+"""
+RAG (Retrieval-Augmented Generation) pipeline module.
+
+Implements a two-stage retrieve-then-rerank pipeline backed by ChromaDB:
+
+1. Embed the user query with ``BAAI/bge-base-en-v1.5`` and retrieve candidate
+   passages from all configured Chroma collections.
+2. Rerank the candidates with ``BAAI/bge-reranker-base`` (a cross-encoder) and
+   keep only the top-3 passages as context.
+3. Inject the passages plus optional corpus metadata into a prompt template from
+   ``prompts.yaml`` and generate a final answer via a local Ollama LLM.
+
+Both the embedding model and the reranker are loaded lazily so that importing
+this module does not delay API startup when the RAG tool is not the first one
+used in a session.
+"""
+
 import os
 import time
 
@@ -18,6 +35,7 @@ _reranker = None
 
 
 def _get_embedding_model():
+    """Return the sentence-transformer embedding model, loading it on first call."""
     global _embedding_model
     if _embedding_model is None:
         logger.info("Loading embedding model BAAI/bge-base-en-v1.5...")
@@ -27,6 +45,7 @@ def _get_embedding_model():
 
 
 def _get_reranker():
+    """Return the cross-encoder reranker model, loading it on first call."""
     global _reranker
     if _reranker is None:
         logger.info("Loading reranker model BAAI/bge-reranker-base...")
@@ -47,6 +66,13 @@ rag_corpus_path = os.path.join(agents_dir, "rag_corpus.yaml")
 
 
 def _load_rag_corpus_text() -> str:
+    """Read corpus metadata from ``rag_corpus.yaml`` and format it as plain text.
+
+    This metadata is prepended to the retrieved passages so the LLM understands
+    the nature and limitations of the knowledge base it is drawing from.
+    Returns an empty string if the file is missing or unreadable, which is
+    treated as a no-op by the caller.
+    """
     try:
         with open(rag_corpus_path, encoding="utf-8") as file:
             corpus = yaml.safe_load(file) or {}
@@ -87,12 +113,25 @@ def _load_rag_corpus_text() -> str:
 
 
 def rag_answer(query: str) -> str:
+    """Run the full RAG pipeline for *query* and return the LLM-generated answer.
+
+    Steps:
+      1. Encode the query into a dense vector.
+      2. Retrieve the top-3 candidate passages from each Chroma collection.
+      3. Rerank all candidates with a cross-encoder and keep the top 3.
+      4. Build a prompt from the ranked context and the template in prompts.yaml.
+      5. Generate and return the answer via Ollama with temperature=0 for
+         deterministic, fact-grounded responses.
+
+    Raises ``RuntimeError`` if the RAG prompt template is missing from
+    ``prompts.yaml``, as the pipeline cannot continue without it.
+    """
     logger.info("RAG pipeline start: query=%s", query[:80])
 
-    # embedding
+    # Encode query to a dense vector for ChromaDB similarity search.
     emb = _get_embedding_model().encode(query).tolist()
 
-    # retrieval
+    # Retrieve candidate passages from every configured collection.
     all_docs = []
 
     for collection in collections:
@@ -103,16 +142,20 @@ def rag_answer(query: str) -> str:
 
     logger.info("RAG retrieved %d docs", len(all_docs))
 
-    # rerank
+    # Cross-encoder reranking: score every (query, passage) pair jointly so
+    # that semantic relevance is judged in full context, not just by embedding
+    # cosine similarity.
     pairs = [(query, d) for d in all_docs]
     scores = _get_reranker().predict(pairs)
 
     ranked_docs = [d for _, d in sorted(zip(scores, all_docs), reverse=True)]
 
+    # Use only the top-3 passages to keep the context window manageable.
     context = "\n".join(ranked_docs[:3])
 
     corpus_context = _load_rag_corpus_text()
     if corpus_context:
+        # Prepend corpus metadata so the LLM knows the provenance of the passages.
         context = f"{corpus_context}\n\nRetrieved passages:\n{context}"
 
     with open(prompts_path, encoding="utf-8") as file:
@@ -124,6 +167,7 @@ def rag_answer(query: str) -> str:
 
     prompt = rag_template.format(context=context, query=query)
 
+    # temperature=0.0 makes responses deterministic and reduces hallucination risk.
     client = ollama.Client(host="http://ollama:11434")
     t0 = time.perf_counter()
     response = client.generate(model=LLM_MODEL, prompt=prompt, options={"temperature": 0.0})

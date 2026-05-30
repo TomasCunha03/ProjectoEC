@@ -1,3 +1,13 @@
+"""
+Bar chart: top medical conditions by drug count (or top drugs for a condition).
+
+Switches between two views depending on whether a disease filter is active:
+- No filter: conditions ranked by how many drugs are available.
+- Filter active: individual drugs for that condition ranked by review count.
+
+SLOT = "main", ORDER = 30 — rendered in the Drug Insights section.
+"""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -9,6 +19,11 @@ ORDER = 30
 
 
 def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int]) -> None:
+    """Render a horizontal bar chart of medical conditions (or drugs) by count.
+
+    The underlying query already handles the overview/zoom switch; this renderer
+    just adjusts the title to reflect which mode is active.
+    """
     df = data.get("top_conditions_by_drugs", pd.DataFrame())
     top_n = int(summary.get("top_n", 10))
     top_n = max(1, min(top_n, 100))
@@ -20,6 +35,7 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, float | int])
     df = df.copy()
     df["drug_count"] = pd.to_numeric(df["drug_count"], errors="coerce")
     df["avg_rating"] = pd.to_numeric(df["avg_rating"], errors="coerce")
+    # Sort ascending so the bar with the highest count appears at the top.
     df = df.dropna(subset=["drug_count"]).sort_values("drug_count", ascending=True)
 
     condition = summary.get("global_disease_name")

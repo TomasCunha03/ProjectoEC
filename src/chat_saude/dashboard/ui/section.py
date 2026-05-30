@@ -1,3 +1,23 @@
+"""
+Dashboard section rendering and chart auto-discovery.
+
+``render_dashboard_section`` is the top-level entry point called by the
+Streamlit app.  It fetches data, groups charts into labelled dashboard
+sections, and renders them in a consistent layout.
+
+Charts are discovered at runtime by scanning the ``charts`` package for
+modules that expose a ``render_chart`` callable.  Each such module may also
+declare:
+
+* ``SLOT`` (str)  — logical section the chart belongs to (``"main"``,
+  ``"chronic"``, ``"future"``; defaults to ``"main"``).
+* ``ORDER`` (int) — render order within the slot (lower = earlier; defaults
+  to ``100``).
+
+This plugin-style approach means new charts can be added by dropping a new
+module into the ``charts`` package without modifying this file.
+"""
+
 from __future__ import annotations
 
 import importlib
@@ -20,6 +40,12 @@ ChartEntry = tuple[int, str, ChartRenderer]
 
 
 def _discover_chart_renderers() -> dict[str, list[ChartEntry]]:
+    """Scan the ``charts`` package and collect all ``render_chart`` callables.
+
+    Returns a dict mapping slot names to sorted lists of ``(order, module_name,
+    renderer)`` tuples.  Modules whose name starts with ``_`` are skipped
+    (private/internal helpers).
+    """
     discovered: dict[str, list[ChartEntry]] = {"main": [], "chronic": [], "future": []}
     package_name = charts.__name__
 
@@ -49,6 +75,13 @@ def _discover_chart_renderers() -> dict[str, list[ChartEntry]]:
 
 
 def render_dashboard_section(filters: DashboardFilters) -> None:
+    """Render the full dashboard for the given ``filters``.
+
+    Sections are rendered in a fixed order (Global → Chronic → Risk/Cost →
+    Drug Insights → Immunization) regardless of chart discovery order, so the
+    layout stays predictable even as new charts are added.  Any charts not
+    claimed by a named section appear in "Additional Charts" at the bottom.
+    """
     header_col, refresh_col = st.columns([5, 1])
     with header_col:
         st.subheader("📊 Health Dashboard")
@@ -80,10 +113,13 @@ def render_dashboard_section(filters: DashboardFilters) -> None:
         st.info("No dashboard charts available.")
         return
 
+    # Build a name → renderer lookup so sections can request charts by module name.
     renderer_map = {module_name: renderer for _, module_name, renderer in main_renderers}
+    # Track which main-slot modules have already been placed into a section.
     used_modules: set[str] = set()
 
     def _take_modules(module_names: list[str]) -> list[ChartRenderer]:
+        """Return renderers for the requested modules and mark them as used."""
         picked: list[ChartRenderer] = []
         for module_name in module_names:
             renderer = renderer_map.get(module_name)
@@ -94,9 +130,15 @@ def render_dashboard_section(filters: DashboardFilters) -> None:
         return picked
 
     def _render_in_columns(renderers: list[ChartRenderer], num_cols: int = 2) -> None:
+        """Lay out renderers side-by-side in ``num_cols`` columns.
+
+        A single renderer is rendered full-width to avoid a narrow half-column
+        layout which looks awkward in most screen sizes.
+        """
         if not renderers:
             return
         if len(renderers) == 1:
+            # Full-width for a lone chart — avoid an empty adjacent column.
             renderers[0](data, summary)
             return
         cols = st.columns(num_cols)
@@ -151,6 +193,7 @@ def render_dashboard_section(filters: DashboardFilters) -> None:
     with st.container(border=True):
         _render_in_columns(_take_modules(["bcg_coverage_2023", "bcg_trend"]), num_cols=2)
 
+    # Collect any main-slot charts that were not explicitly placed in a named section above.
     remaining = [renderer for _, module_name, renderer in main_renderers if module_name not in used_modules]
     if remaining:
         st.markdown("### ➕ Additional Charts")

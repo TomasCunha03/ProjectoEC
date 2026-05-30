@@ -1,3 +1,9 @@
+"""
+Immunization administrative coverage bar chart (single-year snapshot).
+
+SLOT = "main", ORDER = 20 — rendered in the Immunization section.
+"""
+
 from __future__ import annotations
 
 import pandas as pd
@@ -47,10 +53,9 @@ def render_chart(data: dict[str, pd.DataFrame], summary: dict[str, object]) -> N
         st.warning(f"No valid immunization coverage data for {year_label}.")
         return
 
-    # Keep only the top N countries by coverage.
+    # Sort descending to select the top N, then re-sort ascending so the
+    # longest bar appears at the top of the horizontal chart (Plotly convention).
     coverage_df = coverage_df.sort_values("administrative_coverage", ascending=False).head(top_n)
-
-    # Sort for horizontal visualization (lowest to highest within top N).
     coverage_df = coverage_df.sort_values("administrative_coverage", ascending=True)
 
     # Create horizontal bar chart

@@ -1,3 +1,18 @@
+"""
+Dashboard filter-extraction tool for the chat_saude agent.
+
+Converts a natural-language filter request (e.g. "show Portugal data from 2015
+to 2020") into a structured dictionary of dashboard filter values that the
+frontend can apply directly.
+
+Approach:
+  1. Detect a "reset / clear" intent early — no LLM call needed.
+  2. Ask the LLM to extract filters as JSON using a detailed few-shot prompt.
+  3. Validate and type-coerce every extracted field; drop unknown keys.
+  4. If the LLM returns nothing usable, fall back to a set of hand-written
+     regular expressions (_regex_fallback) for common patterns.
+"""
+
 from __future__ import annotations
 
 import json
@@ -13,6 +28,7 @@ logger = get_logger(__name__)
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen2.5:1.5b")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 
+# Fields that must be stored as integers after extraction.
 _INT_FIELDS = frozenset(
     {
         "global_start_year",
@@ -24,6 +40,7 @@ _INT_FIELDS = frozenset(
         "chronic_end_year",
     }
 )
+# Fields that are stored as strings.
 _STR_FIELDS = frozenset(
     {
         "global_country",
@@ -34,8 +51,11 @@ _STR_FIELDS = frozenset(
         "chronic_topic",
     }
 )
+# Union used to whitelist LLM output and discard hallucinated keys.
 _ALLOWED_FIELDS = _INT_FIELDS | _STR_FIELDS
 
+# The LLM sometimes produces vaccine-specific year field names; remap them to
+# the canonical immunization year keys.
 _FIELD_ALIASES = {
     "bcg_start_year": "immunization_start_year",
     "bcg_end_year": "immunization_end_year",
@@ -212,6 +232,12 @@ _VACCINE_CAPTURE_STOP_WORDS = {
 
 
 def _extract_vaccine_code(message: str) -> str | None:
+    """Extract a vaccine code from the message, or return None if not found.
+
+    Tries an inline known-code match first (e.g. "BCG", "DTP3"), then falls
+    back to extracting the token that follows a vaccine keyword.  Stop-words
+    prevent generic words like "coverage" from being captured as codes.
+    """
     inline_match = _VACCINE_CODE_INLINE_RE.search(message)
     if inline_match:
         return inline_match.group(1).upper()
@@ -227,6 +253,7 @@ def _extract_vaccine_code(message: str) -> str | None:
 
 
 def _wants_all_vaccines(message: str) -> bool:
+    """Return True when the user's intent is to show all vaccines, not just one."""
     return bool(_ALL_VACCINES_INTENT_RE.search(message))
 
 
@@ -272,7 +299,8 @@ def dashboard_tool(user_message: str) -> tuple[str, dict]:
                 pass
         logger.warning("Dashboard tool: failed to parse LLM response: %s", raw[:200])
 
-    # Validate and coerce types; drop unknown/invalid fields
+    # Validate and coerce types; drop unknown/invalid fields to prevent
+    # hallucinated LLM keys from reaching the frontend.
     clean_filters: dict = {}
     for raw_key, value in filters.items():
         key = _FIELD_ALIASES.get(raw_key, raw_key)
@@ -281,6 +309,7 @@ def dashboard_tool(user_message: str) -> tuple[str, dict]:
         if key in _INT_FIELDS:
             try:
                 parsed_int = int(value)
+                # top_n is capped at 100 to prevent excessively large chart renders.
                 if key == "top_n":
                     parsed_int = max(1, min(parsed_int, 100))
                 clean_filters[key] = parsed_int
@@ -290,12 +319,14 @@ def dashboard_tool(user_message: str) -> tuple[str, dict]:
             parsed_text = str(value).strip()
             if not parsed_text:
                 continue
+            # Vaccine codes are always stored uppercase (e.g. "bcg" → "BCG").
             if key == "vaccine_code":
                 clean_filters[key] = parsed_text.upper()
             else:
                 clean_filters[key] = parsed_text
 
-    # Support intent like "not only BCG" by explicitly clearing vaccine scope.
+    # Setting vaccine_code to None signals the frontend to show all vaccines.
+    # This must be applied after LLM parsing in case the user said "not only BCG".
     if _wants_all_vaccines(user_message):
         clean_filters["vaccine_code"] = None
 

@@ -1,3 +1,13 @@
+"""
+ETL pipeline for the Drugs & Side Effects dataset.
+
+The source CSV contains drug names, associated medical conditions, side effects,
+drug classes, regulatory details, and user ratings scraped from Drugs.com.
+This module loads the CSV, maps its columns to the SQL schema, cleans numeric
+fields, and bulk-inserts the data into the ``drugs_side_effects`` PostgreSQL
+table, skipping duplicate (drug_name, medical_condition) pairs.
+"""
+
 import os
 
 import numpy as np
@@ -11,6 +21,14 @@ load_dotenv()
 
 
 def ingest_drugs(csv_path):
+    """
+    Load, transform, and ingest the Drugs & Side Effects CSV into the database.
+
+    Parameters
+    ----------
+    csv_path : str
+        Absolute path to the drugs CSV file (e.g. ``drugs_side_effects.csv``).
+    """
     if not os.path.exists(csv_path):
         print(f"Error: File {csv_path} was not found.")
         return
@@ -47,6 +65,7 @@ def ingest_drugs(csv_path):
     if "rating" in df.columns:
         df["rating"] = pd.to_numeric(df["rating"], errors="coerce")
     if "no_of_reviews" in df.columns:
+        # Use nullable integer type (Int64) to preserve NULL values after coercion
         df["no_of_reviews"] = pd.to_numeric(df["no_of_reviews"], errors="coerce").astype("Int64")
 
     df = df.replace({np.nan: None})

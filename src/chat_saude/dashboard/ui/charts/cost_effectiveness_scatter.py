@@ -1,3 +1,11 @@
+"""
+Cost-effectiveness scatter plot: treatment cost vs recovery rate.
+
+Each bubble is a disease-country pair.  Bubble size = number of data points;
+colour = recovery per $1 000 spent (green = better value).
+SLOT = "main", ORDER = 50 — rendered in the Risk and Cost section.
+"""
+
 from __future__ import annotations
 
 import pandas as pd

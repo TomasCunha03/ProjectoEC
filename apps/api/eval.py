@@ -34,10 +34,22 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class EvalCase:
+    """A single evaluation scenario for the chat pipeline.
+
+    Each case specifies the user message to send, which backend tool is
+    expected to handle it, and an optional substring to verify in the
+    assistant response. Cases are intentionally frozen so they cannot be
+    mutated during a run.
+    """
+
     id: str
+    """Short, unique identifier used in log lines and the summary table."""
+
     capability: str
+    """Human-readable label for the feature being tested (shown in the report)."""
+
     message: str
-    """Human-readable intent label for the report."""
+    """The user message sent verbatim to ``ChatService.handle_chat``."""
 
     expected_tool: str
     """``rules`` => ``tool_used`` is rules; else this tool id must be listed in ``tools_used``."""
@@ -46,6 +58,8 @@ class EvalCase:
     """Lowercase substring expected in the assistant response (empty = any non-empty text)."""
 
     kind: Literal["rules", "tool"] = "tool"
+    """Distinguishes pure-rules cases (no LLM needed) from tool-routing cases."""
+
     requires_ollama: bool = True
     """Rules-only cases run without Ollama; tools and dashboard need the LLM."""
 
@@ -134,8 +148,12 @@ def _cases() -> list[EvalCase]:
 
 
 def _tools_used_list(out: dict) -> list[str]:
-    """Normalize ``tools_used`` / ``tool_used`` into a list of tool ids."""
+    """Normalize ``tools_used`` / ``tool_used`` into a list of tool ids.
 
+    The chat service may return either a comma-separated ``tools_used`` string
+    (when multiple tools were chained) or a single ``tool_used`` string. This
+    helper normalises both forms so the rest of the eval code has one interface.
+    """
     raw = (out.get("tools_used") or "").strip()
     if raw:
         return [p.strip() for p in raw.split(",") if p.strip()]
@@ -144,6 +162,12 @@ def _tools_used_list(out: dict) -> list[str]:
 
 
 def _tool_matches(out: dict, expected: str, kind: Literal["rules", "tool"]) -> bool:
+    """Return True if the service response shows the expected tool was used.
+
+    For ``kind="rules"`` cases the single ``tool_used`` field must equal
+    ``"rules"`` exactly. For ``kind="tool"`` cases the expected tool id just
+    needs to appear somewhere in the (potentially multi-tool) list.
+    """
     if kind == "rules":
         return (out.get("tool_used") or "").strip() == "rules"
     tools = _tools_used_list(out)
@@ -151,12 +175,19 @@ def _tool_matches(out: dict, expected: str, kind: Literal["rules", "tool"]) -> b
 
 
 def _response_ok(text: str, hint: str) -> bool:
+    """Return True if the response text satisfies the hint constraint.
+
+    An empty hint means any non-empty response is acceptable (used for tool
+    cases where the exact wording cannot be predicted). A non-empty hint is
+    checked as a case-insensitive substring match.
+    """
     if not hint:
         return bool(text and str(text).strip())
     return hint.lower() in (text or "").lower()
 
 
 def _effective_ollama_host() -> str:
+    """Return the currently configured Ollama base URL (for display purposes)."""
     return os.getenv("OLLAMA_HOST", "http://ollama:11434")
 
 
@@ -202,6 +233,11 @@ def _ensure_ollama_url_for_process() -> bool:
 
 
 def _emit(line: str, report: TextIO | None) -> None:
+    """Print a line to stdout and, if a report file is open, mirror it there.
+
+    Flushing after each write ensures the file is not empty when inspected
+    mid-run (e.g. if the process is killed before the eval completes).
+    """
     print(line)
     if report is not None:
         report.write(line + "\n")
@@ -221,6 +257,8 @@ def run_startup_eval(report_path: str | None = None) -> bool:
     # Lazy import so importing this module does not load the full chat stack until URL is chosen.
     from chat_saude.services.chat_service import ChatService
 
+    # Resolve the report file path: explicit argument > env var > cwd default.
+    # Setting EVAL_REPORT_PATH to an empty string or "none" disables file output.
     path_env = os.getenv("EVAL_REPORT_PATH")
     if report_path is None:
         if path_env is None:
@@ -235,6 +273,8 @@ def run_startup_eval(report_path: str | None = None) -> bool:
     if report_path_resolved:
         report_file = open(report_path_resolved, "w", encoding="utf-8")
 
+    # When EVAL_REQUIRE_OLLAMA=1, cases that need Ollama are marked FAIL instead
+    # of SKIP when Ollama is unreachable, making CI pipelines fail explicitly.
     strict_tools = os.getenv("EVAL_REQUIRE_OLLAMA", "").strip().lower() in (
         "1",
         "true",
@@ -323,6 +363,7 @@ def run_startup_eval(report_path: str | None = None) -> bool:
 
 
 def main() -> None:
+    """CLI entry point: run the eval suite and exit with code 0 on success, 1 on failure."""
     ok = run_startup_eval()
     sys.exit(0 if ok else 1)
 

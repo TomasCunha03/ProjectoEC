@@ -20,6 +20,22 @@ COLLECTION_NAME = "medlineplus_health_topics"
 
 
 def verify_mongo_connection(db=None) -> tuple[bool, str]:
+    """
+    Ping MongoDB and return a (success, message) tuple.
+
+    Parameters
+    ----------
+    db :
+        An existing MongoDB database handle.  A new connection is opened when
+        not provided.
+
+    Returns
+    -------
+    tuple[bool, str]
+        ``(True, ok_message)`` on success or ``(False, error_message)`` on
+        failure.  Useful for early-exit checks before starting long ingestion
+        runs.
+    """
     try:
         if db is None:
             db = get_mongo_db()
@@ -111,6 +127,26 @@ def fetch_medlineplus(disease_name: str) -> dict | None:
 
 
 def ingest_medlineplus(skip_connection_check: bool = False):
+    """
+    Fetch MedlinePlus summaries for every disease in PostgreSQL and store them
+    in MongoDB.
+
+    The function is incremental: diseases that already have a document in the
+    ``medlineplus_health_topics`` collection are skipped rather than
+    overwritten, so the script can be interrupted and re-run without losing
+    progress or creating duplicates.
+
+    Parameters
+    ----------
+    skip_connection_check : bool
+        When True, skip the MongoDB ping check (useful in tests or when the
+        caller has already verified connectivity).
+
+    Returns
+    -------
+    dict
+        Summary counts: ``{"ingested": int, "skipped": int, "failed": int}``.
+    """
     db = get_mongo_db()
 
     if not skip_connection_check:
