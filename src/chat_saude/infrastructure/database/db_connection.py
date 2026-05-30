@@ -20,13 +20,13 @@ from pymongo import MongoClient
 
 from chat_saude.config.settings import settings
 
-
 # ---------------------------------------------------------------------------
 # Private parameter helpers
 # Each helper checks a legacy env var first so that deployments that set
 # SQL_HOST / MONGO_HOST / VECTOR_HOST directly keep working without changes
 # to the settings object.
 # ---------------------------------------------------------------------------
+
 
 def _pg_host():
     return os.getenv("SQL_HOST") or getattr(settings, "POSTGRES_HOST", "localhost")
@@ -70,6 +70,7 @@ def _vector_port():
 # plain bool so the caller never has to handle exceptions.  The short
 # timeouts (3 s) are intentional — a health check must not block the UI.
 # ---------------------------------------------------------------------------
+
 
 def test_sql():
     """Return True if a TCP connection to PostgreSQL can be established within 3 s."""
@@ -120,6 +121,7 @@ def test_vector():
 # scripts can use COPY, executemany, or direct collection access for bulk
 # data loading without the overhead of an ORM.
 # ---------------------------------------------------------------------------
+
 
 def get_db_connection():
     """Return a raw psycopg2 connection to PostgreSQL.

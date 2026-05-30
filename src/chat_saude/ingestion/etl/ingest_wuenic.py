@@ -134,7 +134,7 @@ def ingest_wuenic(file_path):
                     row.get("children_target"),
                     row.get("births_unpd"),
                     row.get("surviving_infants"),
-                    None,   # calculated_coverage: reserved for downstream computation
+                    None,  # calculated_coverage: reserved for downstream computation
                     False,  # anomaly_flag: default to False; can be set by a later process
                 )
             )
