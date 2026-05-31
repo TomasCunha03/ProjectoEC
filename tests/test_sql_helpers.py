@@ -86,3 +86,45 @@ def test_is_safe_query_allows_select_only():
     assert sql_tool._is_safe_query("SELECT * FROM people") is True
     assert sql_tool._is_safe_query("DELETE FROM people") is False
     assert sql_tool._is_safe_query("SELECT * FROM people; DROP TABLE people") is False
+
+
+def test_sanitize_generated_sql_removes_treat_activity_filter():
+    """Strips hallucinated activity = 'Treat' filters."""
+    sql_tool = load_sql_tool()
+
+    raw = "SELECT drug_name FROM drugs_side_effects dsd WHERE dsd.medical_condition ILIKE '%AIDS%' AND dsd.activity = 'Treat' LIMIT 10"
+    assert sql_tool._sanitize_generated_sql(raw) == ("SELECT drug_name FROM drugs_side_effects dsd WHERE dsd.medical_condition ILIKE '%AIDS%' LIMIT 10")
+
+
+def test_try_deterministic_sql_disease_count_and_names():
+    """Builds scalar-subquery SQL for count plus sample disease names."""
+    sql_tool = load_sql_tool()
+
+    question = "Using your SQL health database, how many distinct diseases are recorded, and list three disease names from the diseases table."
+    sql = sql_tool._try_deterministic_sql(question)
+    assert sql is not None
+    assert "COUNT(DISTINCT name)" in sql
+    assert "LIMIT 3" in sql
+
+
+def test_try_deterministic_sql_drugs_for_condition():
+    """Builds direct drugs_side_effects lookup for treatment questions."""
+    sql_tool = load_sql_tool()
+
+    sql = sql_tool._try_deterministic_sql("Show me 10 drugs to treat aids")
+    assert sql is not None
+    assert "drugs_side_effects" in sql
+    assert "ILIKE '%aids%'" in sql
+    assert "LIMIT 10" in sql
+    assert "activity" not in sql
+
+
+def test_try_deterministic_sql_side_effects_of_drug():
+    """Builds drug_name lookup for side-effect questions."""
+    sql_tool = load_sql_tool()
+
+    sql = sql_tool._try_deterministic_sql("What are the side effects of doxycycline")
+    assert sql is not None
+    assert "side_effects" in sql
+    assert "ILIKE '%doxycycline%'" in sql
+    assert "generic_name" in sql

@@ -199,6 +199,75 @@ def _extract_sql(raw_output: str) -> str:
     return candidate
 
 
+# LLMs often filter activity = 'Treat', but activity stores effectiveness percentages (e.g. "12%").
+_ACTIVITY_FILTER_RE = re.compile(
+    r"\s+AND\s+(?:\w+\.)?activity\s*(?:=|ILIKE)\s*'(?:Treat|Prevent|Treatment|Treating)'",
+    re.IGNORECASE,
+)
+
+
+def _sanitize_generated_sql(sql: str) -> str:
+    """Remove known-bad filters that make valid-looking queries return no rows."""
+    sanitized = _ACTIVITY_FILTER_RE.sub("", sql).strip()
+    return re.sub(r"\s+", " ", sanitized)
+
+
+def _try_deterministic_sql(user_question: str) -> str | None:
+    """Return a vetted SQL template for frequent question shapes the small LLM mishandles."""
+    q = user_question.lower()
+
+    if re.search(r"distinct\s+diseases?", q) and re.search(r"(?:from\s+the\s+)?diseases?\s+table", q) and re.search(r"(list|name|three|\b3\b|\d+\s+disease)", q):
+        limit = 3
+        num_match = re.search(r"\b(?:list|show|give)\s+(?:me\s+)?(?:three|(\d+))\s+disease", q)
+        if num_match and num_match.group(1):
+            limit = int(num_match.group(1))
+        return f"SELECT (SELECT COUNT(DISTINCT name) FROM diseases) AS num_distinct_diseases, name FROM diseases ORDER BY name LIMIT {limit}"
+
+    drug_limit_match = re.search(r"\b(\d+)\s+drugs?\b", q)
+    treat_match = re.search(
+        r"(?:drugs?|medications?)\s+(?:to\s+)?(?:treat|for)\s+([a-z0-9][a-z0-9 /+-]*)",
+        q,
+    )
+    if drug_limit_match and treat_match:
+        limit = int(drug_limit_match.group(1))
+        condition = treat_match.group(1).strip().split()[0].replace("'", "''")
+        return f"SELECT drug_name, medical_condition, side_effects, rating, no_of_reviews FROM drugs_side_effects WHERE medical_condition ILIKE '%{condition}%' LIMIT {limit}"
+
+    if re.search(r"\bdrugs?\b", q) and re.search(r"\btreat\b", q):
+        limit = 10
+        if drug_limit_match:
+            limit = int(drug_limit_match.group(1))
+        condition_match = re.search(r"\btreat\s+([a-z0-9][a-z0-9+-]*)", q)
+        if condition_match:
+            condition = condition_match.group(1).replace("'", "''")
+            return f"SELECT drug_name, medical_condition, side_effects, rating, no_of_reviews FROM drugs_side_effects WHERE medical_condition ILIKE '%{condition}%' LIMIT {limit}"
+
+    side_effects_match = re.search(
+        r"(?:side\s+effects?\s+(?:of|for|from)\s+|"
+        r"what\s+(?:are\s+)?(?:the\s+)?side\s+effects?\s+(?:of|for|from)\s+)"
+        r"([a-z0-9][a-z0-9 +-]*)",
+        q,
+    )
+    if side_effects_match:
+        drug = side_effects_match.group(1).strip().split()[0].replace("'", "''")
+        return (
+            "SELECT drug_name, generic_name, medical_condition, side_effects, rating, no_of_reviews "
+            f"FROM drugs_side_effects WHERE drug_name ILIKE '%{drug}%' OR generic_name ILIKE '%{drug}%' "
+            "ORDER BY no_of_reviews DESC NULLS LAST LIMIT 10"
+        )
+
+    named_side_effects_match = re.search(r"\b([a-z0-9][a-z0-9+-]*)\s+side\s+effects?\b", q)
+    if named_side_effects_match:
+        drug = named_side_effects_match.group(1).replace("'", "''")
+        return (
+            "SELECT drug_name, generic_name, medical_condition, side_effects, rating, no_of_reviews "
+            f"FROM drugs_side_effects WHERE drug_name ILIKE '%{drug}%' OR generic_name ILIKE '%{drug}%' "
+            "ORDER BY no_of_reviews DESC NULLS LAST LIMIT 10"
+        )
+
+    return None
+
+
 def _build_postgres_uri() -> str:
     """
     Build the SQLAlchemy connection URI from environment variables.
@@ -272,17 +341,22 @@ def sql_query(user_question: str) -> str:
             end_span(span, output_payload={"error": msg}, level="ERROR", status_message="prompt_missing")
             return msg
 
-        prompt_sql = gen_template.format(
-            schema=schema,
-            data_context=data_context or "No extra table-content metadata available.",
-            user_question=user_question,
-        )
+        deterministic_sql = _try_deterministic_sql(user_question)
+        if deterministic_sql and _is_safe_query(deterministic_sql):
+            generated_sql = deterministic_sql
+            logger.info("Using deterministic SQL: %s", generated_sql)
+        else:
+            prompt_sql = gen_template.format(
+                schema=schema,
+                data_context=data_context or "No extra table-content metadata available.",
+                user_question=user_question,
+            )
 
-        # 2. Ask the LLM to generate the SQL, then strip any surrounding prose.
-        raw_response = llm.invoke(prompt_sql)
-        raw_sql = raw_response.content if hasattr(raw_response, "content") else str(raw_response)
-        generated_sql = _extract_sql(raw_sql)
-        logger.info("Generated SQL query: %s", generated_sql)
+            # 2. Ask the LLM to generate the SQL, then strip any surrounding prose.
+            raw_response = llm.invoke(prompt_sql)
+            raw_sql = raw_response.content if hasattr(raw_response, "content") else str(raw_response)
+            generated_sql = _sanitize_generated_sql(_extract_sql(raw_sql))
+            logger.info("Generated SQL query: %s", generated_sql)
 
         # 3. Reject the query if it is not a safe SELECT statement.
         if not generated_sql or not _is_safe_query(generated_sql):
@@ -306,20 +380,30 @@ def sql_query(user_question: str) -> str:
             User question:
             {user_question}
 
+            Database schema:
+            {schema}
+
+            Table-content context:
+            {data_context or "No extra table-content metadata available."}
+
             SQL query:
             {generated_sql}
 
             Database error:
             {result}
 
-            Fix the SQL query.
-            
+            Fix the SQL query using only the schema and context above.
+            Drug questions should query drugs_side_effects.medical_condition directly.
+            drugs_side_effects.activity stores effectiveness percentages (e.g. '12%'), not labels like 'Treat'.
+            For count plus sample rows, use a scalar subquery:
+            SELECT (SELECT COUNT(DISTINCT name) FROM diseases) AS num_distinct_diseases, name FROM diseases ORDER BY name LIMIT 3;
+
             Return ONLY valid PostgreSQL SQL.
             """
 
             retry_response = llm.invoke(correction_prompt)
 
-            retry_sql = _extract_sql(retry_response.content if hasattr(retry_response, "content") else str(retry_response))
+            retry_sql = _sanitize_generated_sql(_extract_sql(retry_response.content if hasattr(retry_response, "content") else str(retry_response)))
 
             logger.info("Retry SQL: %s", retry_sql)
 
@@ -329,14 +413,69 @@ def sql_query(user_question: str) -> str:
             result = db.run_no_throw(retry_sql)
 
             if isinstance(result, str) and result.strip().startswith("Error"):
-                return f"SQL query failed after retry: {result}"
+                fallback_sql = _try_deterministic_sql(user_question)
+                if fallback_sql and _is_safe_query(fallback_sql):
+                    fallback_result = db.run_no_throw(fallback_sql)
+                    if not (isinstance(fallback_result, str) and fallback_result.strip().startswith("Error")) and fallback_result not in ("", "[]", [], None):
+                        result = fallback_result
+                        generated_sql = fallback_sql
+                    else:
+                        return f"SQL query failed after retry: {result}"
+                else:
+                    return f"SQL query failed after retry: {result}"
 
             generated_sql = retry_sql
 
         if result in ("", "[]", [], None):
-            msg = "No results found for this question in the database."
-            end_span(span, output_payload={"generated_sql": generated_sql, "result": result})
-            return msg
+            # Empty results may mean valid SQL but wrong tables/joins — retry once with schema hints.
+            empty_retry_prompt = f"""
+            The following SQL query ran successfully but returned no rows.
+
+            User question:
+            {user_question}
+
+            Database schema:
+            {schema}
+
+            Table-content context:
+            {data_context or "No extra table-content metadata available."}
+
+            SQL query:
+            {generated_sql}
+
+            Rewrite the query. For drug/treatment questions, use drugs_side_effects with medical_condition ILIKE.
+            Do not join drugs_side_effects to disease_symptoms.
+            Do not filter drugs_side_effects.activity to 'Treat'; activity holds percentages like '12%'.
+
+            Return ONLY valid PostgreSQL SQL.
+            """
+            empty_retry_response = llm.invoke(empty_retry_prompt)
+            empty_retry_sql = _sanitize_generated_sql(_extract_sql(empty_retry_response.content if hasattr(empty_retry_response, "content") else str(empty_retry_response)))
+            logger.info("Empty-result retry SQL: %s", empty_retry_sql)
+
+            if empty_retry_sql and _is_safe_query(empty_retry_sql) and empty_retry_sql != generated_sql:
+                retry_result = db.run_no_throw(empty_retry_sql)
+                if not (isinstance(retry_result, str) and retry_result.strip().startswith("Error")) and retry_result not in (
+                    "",
+                    "[]",
+                    [],
+                    None,
+                ):
+                    result = retry_result
+                    generated_sql = empty_retry_sql
+
+            if result in ("", "[]", [], None):
+                fallback_sql = _sanitize_generated_sql(_try_deterministic_sql(user_question) or "")
+                if fallback_sql and _is_safe_query(fallback_sql) and fallback_sql != generated_sql:
+                    fallback_result = db.run_no_throw(fallback_sql)
+                    if not (isinstance(fallback_result, str) and fallback_result.strip().startswith("Error")) and fallback_result not in ("", "[]", [], None):
+                        result = fallback_result
+                        generated_sql = fallback_sql
+
+            if result in ("", "[]", [], None):
+                msg = "No results found for this question in the database."
+                end_span(span, output_payload={"generated_sql": generated_sql, "result": result})
+                return msg
 
         # 5. Load explanation prompt and generate the final response
         exp_template = load_prompt(prompts_path, "sql_explanation_prompt")
