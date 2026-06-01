@@ -50,4 +50,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="DrHouseGPT API", lifespan=lifespan)
 
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 app.include_router(chat_router)

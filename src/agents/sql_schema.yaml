@@ -677,7 +677,8 @@ tables:
       - name: activity
         type: TEXT
         nullable: true
-        description: Drug activity status/details.
+        description: Reported effectiveness percentage for this drug-condition pair (e.g. '12%', '0%').
+        hints: Do not filter to 'Treat' or 'Prevent'; those values are not in this column.
       - name: rx_otc
         type: TEXT
         nullable: true
@@ -721,6 +722,7 @@ tables:
     value_examples:
       rx_otc: Rx, OTC
       pregnancy_category: A, B, C, D, X
+      activity: 0%, 12%, 35%
     query_patterns:
       - Get side effects for a drug
       - Find drugs for a condition
@@ -728,3 +730,5 @@ tables:
       - Filter by pregnancy category or Rx/OTC
     notes:
       - side_effects and related_drugs are free text and may need parsing-like display.
+      - For "drugs to treat X", query this table only with medical_condition ILIKE '%X%'. Do not join to disease_symptoms or symptoms.
+      - medical_condition values include labels like AIDS/HIV, not symptom names.

@@ -69,11 +69,16 @@ services:
       - ./src/agents:/app/src/agents
       - ./src/chat_saude:/app/src/chat_saude
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8500/health >/dev/null 2>&1 || wget -qO- http://localhost:8500/health >/dev/null 2>&1"]
+      # RUN_STARTUP_EVAL blocks HTTP until eval finishes. python:3.11-slim has no curl/wget.
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8500/health', timeout=3)\"",
+        ]
       interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 30s
+      retries: 6
+      start_period: 360s
     depends_on:
       db_sql:
         condition: service_healthy

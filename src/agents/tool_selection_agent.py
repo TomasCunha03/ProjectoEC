@@ -188,6 +188,32 @@ def load_prompt(file_path="prompts.yaml", key="system_prompt") -> str:
         return ""
 
 
+def _try_keyword_tool_selection(user_question: str) -> list[str] | None:
+    """Return tool names for obvious database drug queries before calling the LLM."""
+    q = user_question.strip()
+    if not q:
+        return None
+
+    lower = q.lower()
+
+    if re.search(r"\b(?:side\s+effects?|adverse\s+effects?)\b", lower):
+        if re.search(r"\b(?:of|for|from)\s+\w", lower) or re.search(r"\b\w[\w-]*\s+(?:side\s+effects?|adverse\s+effects?)\b", lower):
+            return ["sql_query"]
+        if re.search(r"\b(?:what|list|show)\s+(?:are\s+)?(?:the\s+)?(?:side\s+effects?|adverse\s+effects?)\b", lower):
+            return ["sql_query"]
+
+    if re.search(r"\b(?:dosage|dose|rating|reviews?)\b", lower) and re.search(r"\b(?:of|for)\s+\w", lower):
+        return ["sql_query"]
+
+    if re.search(r"\b(?:drugs?|medications?)\s+(?:to\s+)?(?:treat|for)\s+\w", lower):
+        return ["sql_query"]
+
+    if re.search(r"\b(?:find|list|show)\s+(?:me\s+)?(?:drugs?|medications?)\b", lower):
+        return ["sql_query"]
+
+    return None
+
+
 def select_tool(user_question: str) -> dict:
     """Select appropriate backend tools for a user question using the configured LLM.
 
@@ -214,6 +240,12 @@ def select_tool(user_question: str) -> dict:
                      the caller does not need to carry it separately.
     """
     logger.info("Using LLM for tool selection: %s", user_question[:80])
+
+    keyword_tools = _try_keyword_tool_selection(user_question)
+    if keyword_tools:
+        logger.info("Tool selection keyword fast-path: tools=%s", keyword_tools)
+        return {"tools": keyword_tools, "query": user_question}
+
     system_prompt = load_prompt("prompts.yaml", "system_prompt")
 
     messages = [

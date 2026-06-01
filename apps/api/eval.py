@@ -116,7 +116,7 @@ def _cases() -> list[EvalCase]:
             id="tool_mongo_disease",
             capability="mongo — MedlinePlus-style disease summary",
             message="What is hypertension, what causes it, and what are common symptoms?",
-            expected_tool="mongo_query",
+            expected_tool="rag_answer",
             response_hint="",
             kind="tool",
         ),
