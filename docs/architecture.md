@@ -58,11 +58,14 @@ The codebase follows a layered approach so orchestration remains stable while im
   - Application entrypoints (Streamlit UI and FastAPI API routing)
 - `src/chat_saude/services/`
   - Request orchestration (`ChatService`): rules -> tool selection -> tool execution -> trace finalization
+- `src/agents/`
+  - LLM-based tool-selection agent (`tool_selection_agent.py`) and a terminal interface for local testing
 - `src/chat_saude/tools/`
   - Tool implementations called by `ChatService`:
     - `rag_tool` (RAG pipeline)
     - `sql_query` (safe SQL generation/execution + explanation)
     - `mongo_query` (heuristic planning + Mongo context + LLM response)
+    - `dashboard_tool` (interactive health statistics visualizations)
 - `src/chat_saude/repositories/`
   - Data access abstractions over specific backends (Postgres/Mongo/Chroma)
 - `src/chat_saude/infrastructure/`
@@ -89,7 +92,7 @@ This section describes what happens for one user message from the UI to the fina
    - Domain filtering (medical vs non-medical) using sentence embeddings
    - If rules produce an answer, `ChatService` returns immediately.
 5. **Tool selection**
-   - An agent-based decision chooses a subset of tools from: `rag_answer`, `sql_query`, and `mongo_query`.
+   - An agent-based decision chooses a subset of tools from: `rag_answer`, `sql_query`, `mongo_query`, and `dashboard`.
    - The agent uses Ollama with a `system_prompt` that instructs it to output a JSON object containing the selected tools.
 6. **Tool execution**
    - `rag_answer`: vector retrieval (Chroma) + reranking + LLM response
@@ -103,6 +106,7 @@ This section describes what happens for one user message from the UI to the fina
      - Determine a query "plan" with regex/heuristics
      - Fetch relevant Mongo context (WHO + MedlinePlus collections)
      - Ask Ollama to answer using the retrieved context
+   - `dashboard`: parse the user request for filters (disease, country, year, etc.) and render interactive Plotly charts directly in the Streamlit UI
    - If multiple tools are selected, `ChatService` executes them (in a fixed order) and concatenates their outputs.
 7. **`ChatService` finalizes tracing**
    - The final output is attached to the Langfuse trace and spans are ended.
@@ -139,6 +143,14 @@ Responsibilities:
 - Use Ollama to generate a user-facing response based on that context
 
 Mongo "actions" map to different context builders (e.g. indicator search, dimension values, MedlinePlus topic lookup).
+
+### Dashboard tool (`dashboard_tool`)
+Responsibilities:
+- Parse the user's request for filter parameters (disease, country, year, top-N, vaccine code, etc.)
+- Query the appropriate data source (PostgreSQL / ChromaDB) via the dashboard service
+- Return a set of Plotly chart figures that the Streamlit UI renders inline in the chat
+
+The chart catalogue is discovered automatically from `src/chat_saude/dashboard/ui/charts/` — each module declares a `SLOT` (section) and `ORDER` (position) so new charts can be added without changing orchestration code.
 
 ## 5. Data Layer
 The chatbot uses multiple databases so each tool can use the most appropriate storage/access pattern.
@@ -222,7 +234,7 @@ From the repository root:
 
 1. Start containers (so DB endpoints are reachable):
    ```console
-   docker-compose up --build
+   make up
    ```
 2. Ingest WUENIC (example already used by the project):
    ```bash
