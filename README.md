@@ -19,6 +19,7 @@ The goal is not only to answer questions, but also to make the behavior inspecta
   - `rag_tool` (vector retrieval + reranking + LLM response)
   - `sql_tool` (safe SQL generation + execution + explanation)
   - `mongo_tool` (heuristic planning + Mongo context + LLM response)
+  - `dashboard_tool` (interactive health statistics visualizations rendered inside the chat UI)
 - Observability:
   - Langfuse tracing spans per request and per tool
   - Application logging via a centralized logger
@@ -37,11 +38,24 @@ The goal is not only to answer questions, but also to make the behavior inspecta
 This repository is organized into the following top-level directories:
 - `apps/`: deployable application entrypoints (API + UI)
 - `src/chat_saude/`: core chatbot implementation (services, tools, repositories, infrastructure, ingestion)
+- `src/agents/`: LLM-based tool-selection agent and terminal interface for local testing
 - `data/`: local datasets used for ingestion (CSVs/JSON/Excel, depending on the pipeline)
 - `scripts/`: small manual CLI helpers for testing specific parts of the system
 - `tests/`: automated tests
 
 ## 5. Setup Instructions
+
+### Quick start (recommended)
+```console
+git clone <repository-url>
+cd ProjetoEC
+cp .env.example .env   # fill in the required values
+make setup             # downloads data, builds images, runs ingestion, pulls the LLM model
+```
+
+`make setup` is equivalent to running the steps below in order.
+
+### Step-by-step
 1. **Clone the repository**
    ```console
    git clone <repository-url>
@@ -50,14 +64,37 @@ This repository is organized into the following top-level directories:
 2. **Configure environment variables**
    ```console
    cp .env.example .env
+   # Edit .env and fill in the required values
    ```
-3. **Start all services with Docker Compose**
+3. **Download datasets**
    ```console
-   docker-compose up --build
+   make download-data
+   ```
+4. **Build and start all services**
+   ```console
+   make up
+   ```
+5. **Run data ingestion**
+   ```console
+   make ingest
+   ```
+6. **Pull the LLM model into Ollama**
+   ```console
+   make pull-model
    ```
 
+### Other useful `make` targets
+| Command | Description |
+|---|---|
+| `make down` | Stop all containers |
+| `make logs` | Tail container logs |
+| `make eval` | Run the pipeline evaluation suite |
+| `make lint` / `make fix` | Lint / auto-fix with Ruff |
+| `make format` | Format code with Ruff |
+| `make clean-all` | Stop containers and remove all volumes |
+
 ## Langfuse Local Setup
-If you are running **Option A** (each developer runs the whole stack locally), follow the Langfuse tutorial:
+If you are running the whole stack locally, follow the Langfuse tutorial:
 - `docs/langfuse-setup.md`
 
 ## 6. Services and URLs
@@ -85,11 +122,4 @@ If a database/service is not listed above, it is still used internally by contai
      - `sql_query` for “numbers/statistics” questions
      - `mongo_query` for WHO GHO + MedlinePlus topic/dimension questions
      - One or more tools may be selected for a single question (e.g., RAG + SQL when both explanation and statistics are needed)
-
-## 8. Development Notes
-- **Ingestion is manual**: datasets and crawled content must be loaded by running the ingestion scripts/crawlers.
-- **Designed for extensibility**:
-  - Tool abstraction (`rag_tool`, `sql_query`, `mongo_query`) keeps the orchestration logic stable while enabling new tools.
-  - Request orchestration is centralized in `ChatService`, making it easy to add new decision policies or tools.
-  - The architecture is compatible with adding more agent/tool “endpoints” (e.g., MCP-style servers) as the research evolves.
 

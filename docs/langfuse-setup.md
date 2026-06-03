@@ -12,7 +12,7 @@ To support **Option A** (everyone runs Langfuse on their own computer, persisten
 From the repository root:
 
 ```console
-docker-compose up -d langfuse
+make up
 ```
 
 Wait ~30-60 seconds, then open:
@@ -35,7 +35,7 @@ If you want different credentials, edit your local `.env` and set:
 Then recreate Langfuse:
 
 ```console
-docker-compose up -d --force-recreate langfuse
+docker compose up -d --force-recreate langfuse
 ```
 
 ## 3) Verify the Project + API keys
@@ -56,7 +56,7 @@ So if you keep the default `.env`, the keys should already match.
 Start the full stack (so the chatbot backend can send traces):
 
 ```console
-docker-compose up --build -d
+make up
 ```
 
 Open the UI:
@@ -78,7 +78,7 @@ If you removed `LANGFUSE_INIT_*` variables or your volumes already exist and you
 
 Then restart:
 ```console
-docker-compose up -d
+make up
 ```
 
 ## Notes / troubleshooting

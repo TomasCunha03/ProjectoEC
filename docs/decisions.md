@@ -9,13 +9,15 @@
 
 This design keeps the FastAPI endpoint thin and makes the behavior consistent across different frontends (current Streamlit UI, future clients, etc.).
 
-## Why tools abstraction (`rag_tool`, `sql_query`, `mongo_query`)
+## Why tools abstraction (`rag_tool`, `sql_query`, `mongo_query`, `dashboard_tool`)
 Each tool encapsulates:
-- its own "input contract" (user question -> tool output text),
+- its own "input contract" (user question -> tool output text or figures),
 - its own data access strategy (Chroma vs Postgres vs Mongo),
 - and its own generation constraints.
 
 In particular, the SQL tool includes safety measures (SELECT-only filtering, forbidden keyword rejection, and extraction of generated SQL from the model output). By isolating that logic in `sql_query`, you reduce the chance of unsafe SQL leaking into the rest of the system.
+
+The dashboard tool is a non-generative tool: instead of producing text via an LLM, it resolves filter parameters from the user's question and returns Plotly figures rendered directly in the UI. This keeps visual analytics decoupled from the text-generation pipeline.
 
 This separation also makes it easy to add new tools later without redesigning request orchestration.
 
