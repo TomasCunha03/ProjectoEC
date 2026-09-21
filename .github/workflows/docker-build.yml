@@ -15,8 +15,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: projectoec6101.azurecr.io
-          username: ${{ secrets.projectoec6101 }}
-          password: ${{ secrets.37GrmAxnvFVGUevikKYgPgHqV13oJzX9NbOcNPF7AF3xHZr8YubvJQQJ99CIACR0EKYEqg7NAAACAZCRszXV }}
+          username: ${{ secrets.ACR_USERNAME  }}
+          password: ${{ secrets.ACR_PASSWORD  }}
 
       - name: Build Docker image
         run: |
